@@ -78,6 +78,84 @@ So depois deve colocar o `avipe_painel` dentro dessa estrutura.
 
 Se o `avipe_painel` for clonado fora da arvore do AVIPE, ele nao encontra `..\config.ini` e nao consegue funcionar corretamente.
 
+## Antes de clonar
+
+Para clonar o repositório, o usuario precisa ter:
+- `git` instalado na maquina;
+- acesso ao GitHub;
+- permissao para usar o terminal ou PowerShell local.
+
+Para verificar se o `git` esta instalado:
+
+```powershell
+git --version
+```
+
+Se esse comando falhar, o clone nao vai funcionar ate o `git` ser instalado.
+
+## Erros comuns ao clonar
+
+### `git` nao e reconhecido
+
+Exemplo comum:
+
+```text
+git : O termo 'git' nao e reconhecido...
+```
+
+Significa que o `git` nao esta instalado ou nao esta disponivel no PATH da maquina.
+
+### Repositorio nao encontrado
+
+Exemplo comum:
+
+```text
+remote: Repository not found.
+fatal: repository '...' not found
+```
+
+Normalmente significa uma destas situacoes:
+- URL digitada incorretamente;
+- nome do repositório incorreto;
+- conta sem acesso ao repositório, quando ele nao e publico;
+- tentativa de usar uma URL antiga apos rename do repositório.
+
+### Falha de autenticacao no GitHub
+
+Exemplo comum:
+
+```text
+fatal: Authentication failed
+```
+
+Para este projeto, isso tende a acontecer apenas se a pessoa tentar usar uma forma de acesso autenticado sem estar logada corretamente no GitHub.
+
+Se o repositório estiver publico, o clone por HTTPS normalmente nao exige login apenas para baixar.
+
+### Clone feito na pasta errada
+
+Mesmo que o clone funcione, o painel nao vai funcionar direito se for baixado fora da estrutura do `TJSP_AVIPE`.
+
+O sintoma mais comum depois e erro porque o painel nao encontra:
+
+```text
+..\config.ini
+```
+
+### Pasta ja existe
+
+Exemplo comum:
+
+```text
+fatal: destination path 'avipe_painel' already exists and is not an empty directory.
+```
+
+Isso significa que a pasta `avipe_painel` ja existe no local escolhido.
+
+Nesse caso, a pessoa deve:
+- usar a pasta ja existente, se ela for a correta;
+- ou remover/renomear a pasta antiga antes de clonar novamente.
+
 ## Instalação
 
 Dentro da pasta `avipe_painel`:
