@@ -49,6 +49,35 @@ TJSP_AVIPE/
 `-- avipe_painel/
 ```
 
+## Onde clonar
+
+O `avipe_painel` nao deve ser clonado isoladamente em qualquer pasta.
+
+Ele precisa ficar dentro de uma copia ja existente do repositório `TJSP_AVIPE`, porque depende do `config.ini` e da estrutura do AVIPE ao lado.
+
+### Se o usuario ja tem o TJSP_AVIPE
+
+Entrar na pasta do `TJSP_AVIPE` e clonar o painel ali dentro:
+
+```powershell
+cd C:\caminho\para\TJSP_AVIPE
+git clone https://github.com/davidpestilli/avipe_painel.git
+```
+
+Resultado esperado:
+
+```text
+C:\caminho\para\TJSP_AVIPE\avipe_painel
+```
+
+### Se o usuario ainda nao tem o TJSP_AVIPE
+
+Primeiro ele precisa obter uma copia funcional do `TJSP_AVIPE`.
+
+So depois deve colocar o `avipe_painel` dentro dessa estrutura.
+
+Se o `avipe_painel` for clonado fora da arvore do AVIPE, ele nao encontra `..\config.ini` e nao consegue funcionar corretamente.
+
 ## Instalação
 
 Dentro da pasta `avipe_painel`:
