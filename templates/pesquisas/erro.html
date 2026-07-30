@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="alert alert-danger shadow-sm">
+    <h1 class="h4">Nao foi possivel carregar o painel</h1>
+    <p class="mb-0">{{ erro }}</p>
+</div>
+<a class="btn btn-outline-secondary" href="{% url 'pesquisas:dashboard' %}">Tentar novamente</a>
+{% endblock %}

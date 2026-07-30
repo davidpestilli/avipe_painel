@@ -1,0 +1,4 @@
+django==6.0.7
+mysql-connector-python==9.5.0
+azure-identity==1.25.1
+azure-keyvault-secrets==4.10.0
