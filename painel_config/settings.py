@@ -3,6 +3,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 AVIPE_ROOT = BASE_DIR.parent
+LEGACY_FRONTEND_ROOT = BASE_DIR / "Legado" / "Frontend_Django"
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "avipe-painel-local-dev-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
@@ -33,7 +34,7 @@ ROOT_URLCONF = "painel_config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        "DIRS": [LEGACY_FRONTEND_ROOT / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -75,7 +76,10 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_DIRS = [
+    BASE_DIR / "frontend" / "dist",
+    LEGACY_FRONTEND_ROOT / "static",
+]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

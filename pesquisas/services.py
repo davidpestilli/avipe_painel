@@ -5,7 +5,6 @@ import getpass
 import math
 import os
 import socket
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -13,11 +12,7 @@ from typing import Any
 import mysql.connector
 from django.conf import settings
 
-AVIPE_ROOT = Path(settings.AVIPE_ROOT)
-if str(AVIPE_ROOT) not in sys.path:
-    sys.path.insert(0, str(AVIPE_ROOT))
-
-from util.secrets import SegredoError, resolver_segredos  # noqa: E402
+from .secrets import SegredoError, resolver_segredos
 
 
 class PainelConfigError(Exception):
@@ -42,10 +37,9 @@ class Paginacao:
 
 
 def carregar_config_avipe() -> configparser.ConfigParser:
-    config_path = AVIPE_ROOT / "config.ini"
+    base_dir = Path(settings.BASE_DIR)
+    config_path = _resolver_config_path(base_dir)
     override_path = Path(settings.BASE_DIR) / "config.local.ini"
-    if not config_path.exists():
-        raise PainelConfigError(f"Arquivo de configuracao nao encontrado em {config_path}.")
 
     config = configparser.ConfigParser(interpolation=None)
     config.read(config_path, encoding="utf-8")
@@ -71,6 +65,21 @@ def carregar_config_avipe() -> configparser.ConfigParser:
         raise PainelConfigError(str(exc)) from exc
 
     return config
+
+
+def _resolver_config_path(base_dir: Path) -> Path:
+    local_config = base_dir / "config.ini"
+    parent_config = base_dir.parent / "config.ini"
+
+    if local_config.exists():
+        return local_config
+    if parent_config.exists():
+        return parent_config
+
+    raise PainelConfigError(
+        "Arquivo de configuracao nao encontrado. "
+        "Crie 'config.ini' dentro do avipe_painel ou mantenha '../config.ini' na pasta pai."
+    )
 
 
 def _aplicar_overrides_de_ambiente(config: configparser.ConfigParser) -> None:

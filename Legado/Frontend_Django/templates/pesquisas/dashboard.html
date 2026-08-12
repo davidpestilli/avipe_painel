@@ -58,9 +58,10 @@
                     <th>Orgao</th>
                     <th>Usuario</th>
                     <th>IP</th>
-                    <th>Inserido em</th>
-                    <th>Processado</th>
-                    <th>Juntado</th>
+                    <th class="text-center">Incluido no localizador em</th>
+                    <th class="text-center">Processado em</th>
+                    <th class="text-center">Processado</th>
+                    <th class="text-center">Juntado</th>
                 </tr>
             </thead>
             <tbody>
@@ -71,12 +72,13 @@
                     <td>{{ item.sig_orgao }}</td>
                     <td>{{ item.usuario_logado }}</td>
                     <td>{{ item.ip_cliente }}</td>
-                    <td>{{ item.data_insercao|date:"d/m/Y H:i:s" }}</td>
-                    <td>{% if item.processado %}Sim{% else %}Nao{% endif %}</td>
-                    <td>{% if item.juntado %}Sim{% else %}Nao{% endif %}</td>
+                    <td class="text-center">{{ item.data_inclusao_localizador|default:"-" }}</td>
+                    <td class="text-center">{{ item.data_processamento|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                    <td class="text-center">{% if item.processado %}Sim{% else %}Nao{% endif %}</td>
+                    <td class="text-center">{% if item.juntado %}Sim{% else %}Nao{% endif %}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="8" class="text-center text-secondary py-4">Nenhum registro encontrado.</td></tr>
+                <tr><td colspan="9" class="text-center text-secondary py-4">Nenhum registro encontrado.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

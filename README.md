@@ -1,205 +1,216 @@
 # AVIPE Painel
 
-Painel web local em Django para consulta do banco `avipebd` usado pelo AVIPE.
+Painel web local para consulta do banco `avipebd` usado pelo AVIPE.
 
-O projeto foi pensado para ficar dentro de uma cópia funcional do repositório `TJSP_AVIPE`, reutilizando o `config.ini` e o mesmo modelo de acesso ao MySQL e ao Azure Key Vault.
+Em 12 de agosto de 2026, o projeto passou a operar com este stack:
 
-## Visão geral
+- frontend ativo: React + Vite + TypeScript + Tailwind 3.3.5
+- backend ativo: Django servindo APIs e a interface compilada
+- frontend legado: preservado em `Legado`
 
-O painel entrega uma interface simples para acompanhamento operacional do AVIPE, com foco em leitura do banco interno e sem alterar o fluxo principal do robô.
+## O que este repositorio entrega
 
-Principais recursos:
-- totais globais do banco;
-- totais da máquina e do usuário local;
-- host, porta e banco em uso;
-- últimos registros inseridos;
-- consulta paginada da tabela `avipe_pesquisa_endereco`;
-- filtros por processo, CPF, órgão, usuário, data de inserção, processado e juntado;
-- detalhe completo por registro.
+- resumo operacional do banco AVIPE
+- totais globais e totais da maquina/usuario local
+- leitura dos ultimos registros
+- consulta paginada da tabela `avipe_pesquisa_endereco`
+- filtros por processo, CPF, orgao, usuario, data, processado e juntado
+- detalhe completo por registro
+- frontend legado acessivel em rota separada
 
-## Capturas de tela
+## Modos de uso
 
-### Resumo do banco
+O projeto agora suporta dois cenarios:
 
-![Resumo do banco](docs/screenshots/resumo.png)
+### 1. Clone standalone
 
-### Consulta com filtros
+Voce pode clonar este repositorio sozinho e configurar um `config.ini` local dentro da propria pasta `avipe_painel`.
 
-![Consulta da tabela](docs/screenshots/consulta.png)
+### 2. Pasta embutida no AVIPE maior
+
+Voce tambem pode manter `avipe_painel` dentro de uma copia maior do `TJSP_AVIPE`, reaproveitando o `config.ini` da pasta pai.
+
+O painel procura a configuracao nesta ordem:
+
+1. `avipe_painel/config.ini`
+2. `../config.ini`
+
+## Estrutura atual
+
+```text
+avipe_painel/
+|-- frontend/
+|-- Legado/
+|-- painel_config/
+|-- pesquisas/
+|-- .venv/
+|-- config.ini.example
+|-- config.local.ini.example
+|-- iniciar_avipe_painel.bat
+|-- preparar_avipe_painel_nova_maquina.bat
+|-- manage.py
+|-- MEMORIA_IMPLEMENTACAO.md
+|-- requirements.txt
+`-- README.md
+```
+
+## Dependencias do stack atual
+
+### Backend Python
+
+As dependencias Python ficam em:
+
+- `requirements.txt`
+
+Pacotes principais:
+
+- `django`
+- `mysql-connector-python`
+- `azure-identity`
+- `azure-keyvault-secrets`
+
+### Frontend React
+
+As dependencias do frontend ficam em:
+
+- `frontend/package.json`
+
+O frontend foi remodelado para instalacao limpa em outra maquina, sem depender de arquivos locais em `Downloads`.
 
 ## Requisitos
 
 - Windows
-- Python compatível com o projeto
-- uma cópia funcional do repositório `TJSP_AVIPE`
+- Python disponivel no `PATH`
+- Node.js disponivel no `PATH`
 - acesso ao banco `avipebd`
-- uma destas opções de credencial:
+- uma destas opcoes de credencial:
   - Azure Key Vault via `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` e `AZURE_CLIENT_SECRET`
-  - `config.local.ini` com a senha literal do `mysql_avipe`
-  - variável `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD`
+  - `config.ini` com a senha literal do `mysql_avipe`
+  - `config.local.ini` como override local
+  - variavel `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD`
 
-## Estrutura esperada
+## Instalacao a partir do GitHub
 
-O painel deve ficar dentro da pasta do projeto AVIPE:
-
-```text
-TJSP_AVIPE/
-|-- config.ini
-|-- ...
-`-- avipe_painel/
-```
-
-## Onde clonar
-
-O `avipe_painel` nao deve ser clonado isoladamente em qualquer pasta.
-
-Ele precisa ficar dentro de uma copia ja existente do repositório `TJSP_AVIPE`, porque depende do `config.ini` e da estrutura do AVIPE ao lado.
-
-### Se o usuario ja tem o TJSP_AVIPE
-
-Entrar na pasta do `TJSP_AVIPE` e clonar o painel ali dentro:
+### 1. Clonar
 
 ```powershell
-cd C:\caminho\para\TJSP_AVIPE
-git clone https://github.com/davidpestilli/avipe_painel.git
+git clone https://github.com/davidpestilli/avipe_paniel.git
+cd avipe_paniel
 ```
 
-Resultado esperado:
+Se preferir, renomeie a pasta localmente para `avipe_painel`.
 
-```text
-C:\caminho\para\TJSP_AVIPE\avipe_painel
+### 2. Configurar o acesso ao banco
+
+Escolha um dos caminhos:
+
+- criar `config.ini` com base em `config.ini.example`
+- ou manter um `config.ini` na pasta pai, se este painel estiver embutido em outro projeto AVIPE
+
+Exemplo minimo:
+
+```ini
+[mysql_avipe]
+host = 127.0.0.1
+port = 3306
+database = avipebd
+user = avipe
+password = sua_senha_aqui
 ```
 
-### Se o usuario ainda nao tem o TJSP_AVIPE
+Se usar Azure Key Vault, preencha tambem:
 
-Primeiro ele precisa obter uma copia funcional do `TJSP_AVIPE`.
+```ini
+[azure]
+key_vault_url = https://seu-vault.vault.azure.net/
+```
 
-So depois deve colocar o `avipe_painel` dentro dessa estrutura.
-
-Se o `avipe_painel` for clonado fora da arvore do AVIPE, ele nao encontra `..\config.ini` e nao consegue funcionar corretamente.
-
-## Antes de clonar
-
-Para clonar o repositório, o usuario precisa ter:
-- `git` instalado na maquina;
-- acesso ao GitHub;
-- permissao para usar o terminal ou PowerShell local.
-
-Para verificar se o `git` esta instalado:
+### 3. Preparar a maquina
 
 ```powershell
-git --version
+.\preparar_avipe_painel_nova_maquina.bat
 ```
 
-Se esse comando falhar, o clone nao vai funcionar ate o `git` ser instalado.
+Esse atalho faz:
 
-## Erros comuns ao clonar
+- criacao do `.venv`, se necessario
+- upgrade do `pip`
+- instalacao do `requirements.txt`
+- `npm install` em `frontend`
+- `npm run build` do frontend React
+- `manage.py migrate`
 
-### `git` nao e reconhecido
+### 4. Iniciar
 
-Exemplo comum:
-
-```text
-git : O termo 'git' nao e reconhecido...
+```powershell
+.\iniciar_avipe_painel.bat
 ```
 
-Significa que o `git` nao esta instalado ou nao esta disponivel no PATH da maquina.
+Depois, abra:
 
-### Repositorio nao encontrado
+- `http://127.0.0.1:8000/`
 
-Exemplo comum:
+## Preparacao manual
 
-```text
-remote: Repository not found.
-fatal: repository '...' not found
-```
-
-Normalmente significa uma destas situacoes:
-- URL digitada incorretamente;
-- nome do repositório incorreto;
-- conta sem acesso ao repositório, quando ele nao e publico;
-- tentativa de usar uma URL antiga apos rename do repositório.
-
-### Falha de autenticacao no GitHub
-
-Exemplo comum:
-
-```text
-fatal: Authentication failed
-```
-
-Para este projeto, isso tende a acontecer apenas se a pessoa tentar usar uma forma de acesso autenticado sem estar logada corretamente no GitHub.
-
-Se o repositório estiver publico, o clone por HTTPS normalmente nao exige login apenas para baixar.
-
-### Clone feito na pasta errada
-
-Mesmo que o clone funcione, o painel nao vai funcionar direito se for baixado fora da estrutura do `TJSP_AVIPE`.
-
-O sintoma mais comum depois e erro porque o painel nao encontra:
-
-```text
-..\config.ini
-```
-
-### Pasta ja existe
-
-Exemplo comum:
-
-```text
-fatal: destination path 'avipe_painel' already exists and is not an empty directory.
-```
-
-Isso significa que a pasta `avipe_painel` ja existe no local escolhido.
-
-Nesse caso, a pessoa deve:
-- usar a pasta ja existente, se ela for a correta;
-- ou remover/renomear a pasta antiga antes de clonar novamente.
-
-## Instalação
-
-Dentro da pasta `avipe_painel`:
+Na pasta raiz:
 
 ```powershell
 python -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe manage.py migrate
 ```
 
+Na pasta `frontend`:
+
+```powershell
+npm install
+npm run build
+```
+
 ## Como iniciar
 
-### Opção 1. Atalho rápido
-
-Use:
+### Atalho rapido
 
 ```powershell
 .\iniciar_avipe_painel.bat
 ```
 
 Esse arquivo:
-- verifica se existe `.venv`;
-- verifica se existe `..\config.ini`;
-- verifica se há algum caminho de credencial disponível;
-- executa `manage.py check`;
-- cria o `db.sqlite3` local do Django se ele ainda não existir;
-- sobe o servidor local.
 
-Depois, abra:
+- valida `.venv`
+- valida a existencia de `config.ini` local ou na pasta pai
+- valida se `frontend/dist` existe
+- executa `manage.py check`
+- cria o `db.sqlite3` local se necessario
+- sobe o servidor Django local
 
-- `http://127.0.0.1:8000/`
-
-### Opção 2. Execução manual
+### Execucao manual
 
 ```powershell
 .\.venv\Scripts\activate
 python manage.py runserver
 ```
 
+## Rotas principais
+
+- nova interface: `http://127.0.0.1:8000/`
+- frontend legado: `http://127.0.0.1:8000/legado/`
+
+## APIs mantidas
+
+As APIs consumidas pela interface e por integracoes externas foram preservadas:
+
+- `GET /health/`
+- `GET /api/dashboard/`
+- `GET /api/pesquisas/`
+- `GET /api/pesquisas/detalhe/?id=<id>`
+
 ## Credenciais
 
 ### Azure Key Vault
 
-Se o `config.ini` do AVIPE usa segredos com prefixo `kv:`, o painel pode usar o mesmo fluxo do AVIPE por meio destas variáveis de ambiente:
+Se o `config.ini` usa segredos com prefixo `kv:`, o painel pode usar o mesmo fluxo por meio destas variaveis:
 
 - `AZURE_CLIENT_ID`
 - `AZURE_TENANT_ID`
@@ -207,7 +218,7 @@ Se o `config.ini` do AVIPE usa segredos com prefixo `kv:`, o painel pode usar o 
 
 ### Override local
 
-Se preferir não depender do Azure localmente, crie um arquivo `config.local.ini` ao lado do `manage.py`, usando como base `config.local.ini.example`.
+Se preferir nao depender do Azure localmente, crie `config.local.ini` ao lado do `manage.py`.
 
 Exemplo:
 
@@ -216,70 +227,70 @@ Exemplo:
 password = sua_senha_aqui
 ```
 
-Também é possível definir:
+Tambem e possivel definir:
 
 - `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD`
 
-## Checagem inicial
+## O que nao deve ser versionado
 
-O arquivo `iniciar_avipe_painel.bat` faz uma checagem inicial antes de subir o servidor.
-
-Ele verifica:
-- existência de `.venv\Scripts\python.exe`;
-- existência de `..\config.ini`;
-- disponibilidade de uma forma de autenticação local;
-- validade estrutural da aplicação com `manage.py check`;
-- existência do banco local `db.sqlite3`;
-- criação inicial do `db.sqlite3`, se necessário.
-
-Ele não garante sozinho:
-- acesso real ao MySQL pela rede;
-- senha correta;
-- acesso efetivo ao Key Vault;
-- permissão real de leitura no banco.
-
-Esses pontos continuam sendo validados quando o painel abre os dados.
-
-## Observações importantes
-
-- o painel é somente leitura;
-- o ajuste de horário é feito apenas na exibição do front, em `America/Sao_Paulo`;
-- a navegação de detalhe usa o `id` do registro para evitar falhas por formatação de data;
-- o projeto foi testado após atualização do AVIPE por `git pull` e continuou funcional.
-
-## O que não deve ser versionado
-
-Já está coberto pelo `.gitignore`:
+Coberto pelo `.gitignore`:
 
 - `.venv/`
 - `db.sqlite3`
 - `config.local.ini`
 - `consultas/`
-- logs e caches locais
+- `*.log`
+- `frontend/node_modules/`
+- `frontend/dist/`
 
 ## Arquivos principais
 
 - `pesquisas/services.py`: acesso ao banco e consultas
-- `pesquisas/views.py`: preparação das telas
-- `templates/pesquisas/`: interface HTML
-- `iniciar_avipe_painel.bat`: inicialização rápida
-- `MEMORIA_IMPLEMENTACAO.md`: histórico técnico e memória de evolução
+- `pesquisas/secrets.py`: resolucao local de segredos Azure
+- `pesquisas/views.py`: APIs e shell React
+- `pesquisas/legacy_views.py`: frontend Django antigo preservado
+- `frontend/src/App.tsx`: interface React ativa
+- `frontend/package.json`: dependencias e scripts do frontend
+- `config.ini.example`: exemplo para clone standalone
+- `preparar_avipe_painel_nova_maquina.bat`: montagem de uma maquina nova
+- `iniciar_avipe_painel.bat`: inicializacao rapida
+- `MEMORIA_IMPLEMENTACAO.md`: historico tecnico da evolucao
 
-## Solução de problemas
+## Solucao de problemas
 
-### O painel não consegue abrir os dados
+### A interface abre, mas nao carrega dados
 
 Verifique:
-- se o `config.ini` do AVIPE está presente na pasta pai;
-- se o acesso ao MySQL `avipebd` está disponível na rede;
-- se o Azure Key Vault está acessível, quando o `config.ini` usa `kv:`;
-- se as variáveis `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` e `AZURE_CLIENT_SECRET` estão visíveis na sessão atual;
-- ou, alternativamente, se `config.local.ini` foi criado corretamente.
 
-### O painel abre, mas os horários parecem incorretos
+- se existe `config.ini` local ou na pasta pai
+- se o acesso ao MySQL `avipebd` esta disponivel
+- se o Key Vault esta acessivel, quando o `config.ini` usa `kv:`
+- se as variaveis Azure estao visiveis na sessao atual
+- ou se `config.local.ini` foi criado corretamente
 
-O front converte os horários exibidos para `America/Sao_Paulo`. Isso não altera o banco, apenas a apresentação.
+### O frontend React foi alterado e a pagina nao mudou
 
-### O AVIPE foi atualizado e o painel deixou de funcionar
+Rebuild do frontend:
 
-O painel foi desenhado para continuar funcional após atualizações do AVIPE, mas mudanças no schema da tabela `avipe_pesquisa_endereco` ou na política de segredos podem exigir ajustes.
+```powershell
+cd frontend
+npm run build
+```
+
+### Preciso abrir a interface antiga
+
+Use:
+
+- `http://127.0.0.1:8000/legado/`
+
+## Verificacao do fluxo de clone
+
+Em 12 de agosto de 2026, o fluxo novo foi verificado localmente com:
+
+- `npm install`
+- `npm run build`
+- `python manage.py check`
+- leitura por `config.ini` local
+- leitura por `config.ini` na pasta pai
+
+Com isso, o repositorio ficou adequado ao fluxo descrito neste README.

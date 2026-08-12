@@ -19,9 +19,31 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-if not exist "..\config.ini" (
-    echo [ERRO] O arquivo "..\config.ini" nao foi encontrado.
-    echo O painel precisa estar dentro da pasta do projeto TJSP_AVIPE.
+if exist "config.ini" (
+    echo [OK] Encontrado config.ini local.
+) else (
+    if exist "..\config.ini" (
+        echo [OK] Encontrado config.ini na pasta pai.
+    ) else (
+        echo [ERRO] Nenhum arquivo de configuracao foi encontrado.
+        echo Use uma destas opcoes:
+        echo   1. criar "config.ini" dentro de avipe_painel
+        echo   2. manter "..\config.ini" na pasta pai
+        echo Veja tambem "config.ini.example".
+        echo.
+        pause
+        exit /b 1
+    )
+)
+
+if not exist "frontend\dist\index.html" (
+    echo [ERRO] O build do frontend React nao foi encontrado em "frontend\dist".
+    echo Antes de iniciar em uma maquina nova, execute:
+    echo   preparar_avipe_painel_nova_maquina.bat
+    echo ou rode manualmente:
+    echo   cd frontend
+    echo   npm install
+    echo   npm run build
     echo.
     pause
     exit /b 1

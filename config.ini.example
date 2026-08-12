@@ -1,0 +1,9 @@
+[mysql_avipe]
+host = 127.0.0.1
+port = 3306
+database = avipebd
+user = avipe
+password = sua_senha_aqui
+
+[azure]
+key_vault_url =

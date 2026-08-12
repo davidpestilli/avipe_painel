@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from urllib.parse import urlencode
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from django.http import JsonResponse
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
@@ -24,6 +26,14 @@ def _contexto_base() -> dict[str, Any]:
     return {"titulo_app": "AVIPE Painel"}
 
 
+def react_app(request: HttpRequest) -> HttpResponse:
+    return render(request, "pesquisas/react_app.html", _contexto_base())
+
+
+def health(request: HttpRequest) -> JsonResponse:
+    return JsonResponse({"status": "ok"})
+
+
 def _ajustar_datas_para_fuso_local(valor: Any) -> Any:
     if isinstance(valor, datetime):
         base = valor.replace(tzinfo=_UTC) if valor.tzinfo is None else valor
@@ -38,26 +48,35 @@ def _normalizar_registro_datas(registro: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def dashboard(request: HttpRequest) -> HttpResponse:
-    contexto = _contexto_base()
+def _serializar_registro(registro: dict[str, Any]) -> dict[str, Any]:
+    normalizado = _normalizar_registro_datas(registro)
+    serializado: dict[str, Any] = {}
+    for chave, valor in normalizado.items():
+        if isinstance(valor, datetime):
+            serializado[chave] = valor.isoformat()
+        else:
+            serializado[chave] = valor
+    return serializado
+
+
+def api_dashboard(request: HttpRequest) -> JsonResponse:
     try:
-        contexto.update(
+        return JsonResponse(
             {
                 "metricas": buscar_metricas(),
                 "info_banco": obter_info_banco(),
                 "ultimos_registros": [
-                    _normalizar_registro_datas(item)
+                    _serializar_registro(item)
                     for item in listar_ultimos_registros()
                 ],
+                "siglas_orgaos": listar_siglas_orgaos(),
             }
         )
-        return render(request, "pesquisas/dashboard.html", contexto)
     except Exception as exc:  # pragma: no cover
-        contexto["erro"] = str(exc)
-        return render(request, "pesquisas/erro.html", contexto, status=500)
+        return JsonResponse({"erro": str(exc)}, status=500)
 
 
-def lista_pesquisas(request: HttpRequest) -> HttpResponse:
+def api_lista_pesquisas(request: HttpRequest) -> JsonResponse:
     filtros = {
         "nuprocesso": request.GET.get("nuprocesso", ""),
         "cpf": request.GET.get("cpf", ""),
@@ -68,45 +87,46 @@ def lista_pesquisas(request: HttpRequest) -> HttpResponse:
         "juntado": request.GET.get("juntado", ""),
     }
     pagina = max(1, int(request.GET.get("pagina", "1") or "1"))
-    contexto = _contexto_base()
     try:
-        contexto.update(
+        paginacao = _normalizar_paginacao(
+            consultar_registros(filtros=filtros, pagina=pagina)
+        )
+        query_base = {chave: valor for chave, valor in filtros.items() if valor}
+        return JsonResponse(
             {
                 "filtros": filtros,
-                "paginacao": _normalizar_paginacao(
-                    consultar_registros(filtros=filtros, pagina=pagina)
-                ),
                 "siglas_orgaos": listar_siglas_orgaos(),
+                "paginacao": {
+                    "itens": [_serializar_registro(item) for item in paginacao.itens],
+                    "pagina": paginacao.pagina,
+                    "por_pagina": paginacao.por_pagina,
+                    "total": paginacao.total,
+                    "total_paginas": paginacao.total_paginas,
+                    "tem_anterior": paginacao.tem_anterior,
+                    "tem_proxima": paginacao.tem_proxima,
+                    "anterior_url": f"/api/pesquisas/?{urlencode({**query_base, 'pagina': paginacao.pagina - 1})}" if paginacao.tem_anterior else "",
+                    "proxima_url": f"/api/pesquisas/?{urlencode({**query_base, 'pagina': paginacao.pagina + 1})}" if paginacao.tem_proxima else "",
+                },
             }
         )
-        return render(request, "pesquisas/lista.html", contexto)
     except Exception as exc:  # pragma: no cover
-        contexto["erro"] = str(exc)
-        return render(request, "pesquisas/erro.html", contexto, status=500)
+        return JsonResponse({"erro": str(exc)}, status=500)
 
 
-def detalhe_pesquisa(request: HttpRequest) -> HttpResponse:
+def api_detalhe_pesquisa(request: HttpRequest) -> JsonResponse:
     registro_id = request.GET.get("id", "")
-    voltar_para = request.GET.get("next", "")
-    contexto = _contexto_base()
-
     if not registro_id:
-        contexto["erro"] = "Informe o id do registro para abrir o detalhe."
-        return render(request, "pesquisas/erro.html", contexto, status=400)
+        return JsonResponse({"erro": "Informe o id do registro para abrir o detalhe."}, status=400)
 
     try:
         registro = buscar_registro_detalhe(int(registro_id))
     except Exception as exc:  # pragma: no cover
-        contexto["erro"] = str(exc)
-        return render(request, "pesquisas/erro.html", contexto, status=500)
+        return JsonResponse({"erro": str(exc)}, status=500)
 
     if not registro:
-        contexto["erro"] = "Registro nao encontrado com os parametros informados."
-        return render(request, "pesquisas/erro.html", contexto, status=404)
+        return JsonResponse({"erro": "Registro nao encontrado com os parametros informados."}, status=404)
 
-    contexto["registro"] = _normalizar_registro_datas(registro)
-    contexto["voltar_para"] = voltar_para
-    return render(request, "pesquisas/detalhe.html", contexto)
+    return JsonResponse({"registro": _serializar_registro(registro)})
 
 
 def _normalizar_paginacao(paginacao):

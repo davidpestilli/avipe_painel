@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-shell font-body text-ink;
+  background:
+    radial-gradient(circle at top left, rgba(13, 106, 99, 0.14), transparent 24%),
+    radial-gradient(circle at top right, rgba(31, 87, 126, 0.12), transparent 28%),
+    linear-gradient(180deg, #f8f3e8 0%, #f2ece1 100%);
+}
+
+#root {
+  @apply min-h-screen;
+}
