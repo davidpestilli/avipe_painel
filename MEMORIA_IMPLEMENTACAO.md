@@ -1,125 +1,187 @@
-# Memoria de Criacao e Implementacao do AVIPE Painel
+# Memoria de Criacao e Implementacao do Watcher AVIPE
 
 ## Objetivo
 
-Criar e evoluir um painel web local, separado do fluxo principal do AVIPE, para visualizar os registros da tabela `avipe_pesquisa_endereco` do banco `avipebd`.
+Criar e evoluir um painel web local, separado do fluxo principal do AVIPE, para:
 
-## Linha de arquitetura atual
+- consultar os registros da tabela `avipe_pesquisa_endereco`
+- monitorar o servico por indicadores e graficos operacionais
+- preservar a interface legada em paralelo
 
-Na quarta-feira, 12 de agosto de 2026, o projeto passou a operar assim:
+## Arquitetura atual
 
-- frontend principal: React + Vite + TypeScript + Tailwind 3.3.5
-- backend principal: Django servindo APIs e a shell da interface compilada
+Em sexta-feira, 14 de agosto de 2026, o projeto opera assim:
+
+- backend principal: Django
+- frontend principal: React + Vite + TypeScript + Tailwind
+- camada de graficos: Recharts
 - legado: frontend Django antigo preservado em `Legado`
 
-## Historico resumido
+## Evolucao resumida
 
 ### Fase 1. Painel Django inicial
 
 Foram entregues:
 
 - criacao do projeto Django isolado em `avipe_painel`
-- conexao ao banco `avipebd` reaproveitando o `config.ini` do AVIPE
-- suporte a segredos do Azure Key Vault
-- suporte adicional a override local via `config.local.ini` ou variavel de ambiente
-- dashboard com totais globais e totais locais
+- conexao ao banco `avipebd`
+- reaproveitamento do `config.ini` do AVIPE
+- suporte a segredos no Azure Key Vault
+- suporte adicional a `config.local.ini` e variavel de ambiente
+- dashboard inicial com totais globais e totais locais
 - listagem com filtros e paginacao
-- detalhe de registro
-- atalho `.bat` para subir o painel com menos passos
+- detalhe por registro
+- atalho `.bat` para subir o painel
 
 ### Fase 2. Migracao para React
 
-Foi feita a migracao da interface para:
+A interface principal foi migrada para:
 
 - React
 - Vite
 - TypeScript
-- Tailwind 3.3.5
+- Tailwind
 
 Mantendo:
 
-- o backend Django
-- as APIs existentes
-- a logica Python de leitura do banco
-- a integracao com o `config.ini` e com o Key Vault
+- backend Django
+- APIs existentes
+- logica Python de leitura do banco
+- integracao com `config.ini` e Key Vault
 
-### Fase 3. Remodelagem para maquina nova
-
-Depois da migracao, foi necessario adaptar a montagem do projeto para um computador novo.
+### Fase 3. Preparacao para maquina nova
 
 Os ajustes principais foram:
 
-- normalizacao de `frontend/package.json` para remover dependencias locais em `Downloads`
-- preservacao de `requirements.txt` como fonte unica das dependencias Python
+- normalizacao de `frontend/package.json`
+- eliminacao de dependencias locais em `Downloads`
+- preservacao de `requirements.txt` como fonte das dependencias Python
 - criacao de `preparar_avipe_painel_nova_maquina.bat`
-- reforco do `iniciar_avipe_painel.bat` para exigir `frontend/dist`
-- atualizacao da documentacao para o stack novo
-- suporte a `config.ini` local para clone standalone do repositorio
+- reforco do `iniciar_avipe_painel.bat`
+- suporte a `config.ini` local para clone standalone
+
+### Fase 4. Transformacao do painel em Watcher AVIPE
+
+Nesta fase, o painel deixou de ser apenas uma tela de consulta e passou a ter:
+
+- navbar entre `Home` e `Pesquisa`
+- Home dedicada a KPIs e observabilidade
+- painel local de maquina/usuario expansivel
+- retirada do bloco de ultimos registros da Home
+- reorganizacao visual da interface para o padrao escuro atual
+- titulo do sistema alterado para `Watcher AVIPE`
+
+### Fase 5. Observabilidade operacional
+
+Foi criada uma nova camada analitica em `pesquisas/analytics.py` para alimentar:
+
+- envios ao localizador por orgao
+- inclusao no localizador x processamento
+- processados e juntados por orgao
+
+Tambem foi criada a API:
+
+- `GET /api/observabilidade/?periodo=<recorte>`
 
 ## Decisoes de arquitetura
 
 ### 1. Backend Django preservado
 
-O Django continuou no centro porque:
+O Django continuou central porque:
 
-- ja continha a logica de acesso ao banco
-- ja possuia as APIs uteis para resumo, listagem e detalhe
-- ja estava integrado ao `TJSP_AVIPE`
-- evita duplicar regra de negocio no frontend
+- ja possuia a logica de acesso ao banco
+- ja servia bem o fluxo de APIs
+- evita duplicacao de regra de negocio no frontend
+- continua adequado ao uso local
 
-### 2. Frontend React para a interface ativa
+### 2. Frontend React como interface ativa
 
-A interface principal foi migrada para React para:
+O React passou a concentrar:
 
-- melhorar a fluidez da navegacao
-- facilitar futuras expansoes visuais
-- alinhar o AVIPE com a estrategia ja adotada na central do NAPE
+- navegacao entre Home, Pesquisa e Detalhe
+- estado visual da observabilidade
+- alternancia de modo `linhas` e `barras`
+- alternancia de leitura por `registros` e `processos`
+- filtros e navegacao de consulta
 
-### 3. Contrato de API preservado
+### 3. Contrato de API preservado e ampliado
 
-As rotas abaixo foram mantidas:
+Foram mantidas:
 
 - `GET /health/`
 - `GET /api/dashboard/`
 - `GET /api/pesquisas/`
 - `GET /api/pesquisas/detalhe/`
 
-Isso foi importante para:
+Foi adicionada:
 
-- preservar compatibilidade com a central do NAPE
-- reduzir risco de regressao
-- permitir migracao do frontend sem reescrever servicos Python
+- `GET /api/observabilidade/`
 
 ### 4. Legado isolado
 
-O frontend Django antigo foi movido para:
+O frontend Django antigo continuou disponivel em:
 
-- `Legado/Frontend_Django`
+- `/legado/`
 
-Com isso:
+Isso permite:
 
-- a aplicacao em uso ficou menos poluida
-- a interface antiga continua acessivel em `/legado/`
-- a base nova ficou mais clara para manutencao
+- referencia historica
+- comparacao funcional
+- fallback controlado
 
-### 5. Montagem separada por camadas
+## Observabilidade e recortes de tempo
 
-Para uma maquina nova, a preparacao agora fica dividida assim:
+### Modos de leitura
 
-- Python e Django: `requirements.txt`
-- React, Vite e Tailwind: `frontend/package.json`
-- automacao de bootstrap: `preparar_avipe_painel_nova_maquina.bat`
-- configuracao: `config.ini` local ou `../config.ini`
+Os graficos da Home passaram a suportar:
+
+- `registros`: quantidade de CPFs pesquisados
+- `processos`: quantidade distinta de processos
+
+### Camadas de status
+
+Na aba `Status por orgao`, o sistema passou a suportar:
+
+- `Sobrepostos`
+- `So processados`
+- `So juntados`
+
+### Recortes moveis
+
+Os recortes `24h`, `48h` e `72h` foram ajustados para usar janela movel real:
+
+- ponto final = hora atual da consulta
+- ponto inicial = 24h, 48h ou 72h para tras
+
+Granularidade adotada:
+
+- `24h`: buckets de 2 em 2 horas
+- `48h`: buckets de 8 em 8 horas
+- `72h`: buckets de 18 em 18 horas
+
+### Rotulagem dos buckets
+
+Para evitar ambiguidade:
+
+- `Hoje` e `24h`: foco em hora
+- `48h` e `72h`: foco em `dia + hora`
+- `Semana`, `7 dias`, `Mes` e `30 dias`: foco em data
+
+### Virada de dia
+
+Os graficos de linha ate `7 dias` passaram a marcar viradas de dia quando ha mudanca real de data entre buckets consecutivos.
 
 ## Estrutura atual
 
 ```text
 avipe_painel/
+|-- docs/
 |-- frontend/
 |-- Legado/
 |-- painel_config/
 |-- pesquisas/
-|-- .venv/
+|-- static/
+|-- templates/
 |-- iniciar_avipe_painel.bat
 |-- preparar_avipe_painel_nova_maquina.bat
 |-- manage.py
@@ -132,7 +194,7 @@ avipe_painel/
 
 ### `requirements.txt`
 
-Mantem as dependencias do backend:
+Mantem as dependencias Python do backend:
 
 - Django
 - MySQL connector
@@ -141,91 +203,59 @@ Mantem as dependencias do backend:
 
 ### `frontend/package.json`
 
-Mantem:
+Mantem o stack da interface:
 
 - React
+- Recharts
 - Vite
 - TypeScript
-- Tailwind 3.3.5
-- scripts `npm install`, `npm run build` e `npm run dev`
+- Tailwind
 
-Tambem deixou de depender de pacotes locais em `Downloads`, o que viabiliza uma instalacao limpa em outra maquina.
+### `pesquisas/analytics.py`
 
-### `preparar_avipe_painel_nova_maquina.bat`
+Concentra:
 
-Passou a concentrar:
-
-- criacao da `.venv`
-- instalacao de dependencias Python
-- instalacao das dependencias do frontend
-- build React
-- migracoes locais do Django
-
-### `iniciar_avipe_painel.bat`
-
-Passou a validar:
-
-- `.venv`
-- `..\config.ini`
-- existencia de `frontend/dist/index.html`
-- `manage.py check`
-- migracoes locais, se necessarias
-
-### `pesquisas/services.py`
-
-Mantem:
-
-- leitura do `config.ini`
-- resolucao de segredos do Azure Key Vault
-- conexao ao MySQL
-- metricas globais e locais
-- consultas da listagem
-- detalhe de registro
+- agregacoes por orgao
+- agregacoes por bucket temporal
+- contagem por registros
+- contagem por processos distintos
+- consolidacao de processados e juntados
 
 ### `pesquisas/views.py`
 
-Agora ficou responsavel por:
+Ficou responsavel por:
 
-- `react_app` na raiz
+- shell React na raiz e em `/home/`
 - endpoints JSON
-- shell da interface React
+- entrega da nova Home e da Pesquisa
 
-### `pesquisas/legacy_views.py`
+### `frontend/src/App.tsx`
 
-Passou a concentrar:
+Concentra:
 
-- dashboard HTML antigo
-- listagem HTML antiga
-- detalhe HTML antigo
+- layout principal
+- estados dos filtros e modos de graficos
+- KPIs da Home
+- navegacao entre Home, Pesquisa e Detalhe
+- renderizacao dos graficos operacionais
 
-## Validacoes realizadas em 12 de agosto de 2026
+## Validacoes realizadas em 14 de agosto de 2026
 
 Foram validados com sucesso:
 
 - `npm run build`
-- `manage.py check`
+- `python manage.py check`
 - `GET /health/`
 - `GET /api/dashboard/`
+- `GET /api/observabilidade/`
 - `GET /api/pesquisas/`
-- abertura da nova interface em `http://127.0.0.1:8000/`
+- abertura da Home em `http://127.0.0.1:8000/home/`
+- abertura da Pesquisa
 - abertura do legado em `http://127.0.0.1:8000/legado/`
-
-## Integracao com a central do NAPE
-
-Apos a migracao, a integracao com a central do NAPE foi mantida porque:
-
-- a URL principal continuou em `http://127.0.0.1:8000/`
-- o health continuou em `http://127.0.0.1:8000/health/`
-- o dashboard continuou em `http://127.0.0.1:8000/api/dashboard/`
-
-Isso preserva:
-
-- leitura de status do painel AVIPE
-- abertura do painel pela central
-- consumo do dashboard pela central
 
 ## Observacoes finais
 
-- o projeto agora esta pronto para ser montado em uma maquina nova com o stack atual
-- o legado foi preservado, mas saiu do caminho principal
-- a logica de banco e de credenciais continua centralizada no Python
+- o projeto esta pronto para instalacao limpa em maquina nova
+- a consulta operacional e a observabilidade coexistem na mesma interface
+- o legado continua disponivel, mas fora do caminho principal
+- a logica de banco e de credenciais segue centralizada no backend Python

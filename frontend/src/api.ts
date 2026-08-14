@@ -1,4 +1,4 @@
-import type { DashboardData, DetalheResponse, ListaResponse } from "./types";
+import type { DashboardData, DetalheResponse, ListaResponse, ObservabilidadeResponse } from "./types";
 
 async function parseJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T;
@@ -12,6 +12,11 @@ async function parseJson<T>(response: Response): Promise<T> {
 export async function fetchDashboard(): Promise<DashboardData> {
   const response = await fetch("/api/dashboard/");
   return parseJson<DashboardData>(response);
+}
+
+export async function fetchObservabilidade(periodo: string): Promise<ObservabilidadeResponse> {
+  const response = await fetch(`/api/observabilidade/?periodo=${encodeURIComponent(periodo)}`);
+  return parseJson<ObservabilidadeResponse>(response);
 }
 
 export async function fetchLista(queryString = ""): Promise<ListaResponse> {

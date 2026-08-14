@@ -19,7 +19,6 @@ export interface DashboardData {
     ip_cliente: string;
     usuario_logado: string;
   };
-  ultimos_registros: PesquisaRegistro[];
   siglas_orgaos: string[];
   erro?: string;
 }
@@ -58,5 +57,65 @@ export interface ListaResponse {
 
 export interface DetalheResponse {
   registro?: PesquisaRegistro;
+  erro?: string;
+}
+
+export interface ObservabilidadeResumo {
+  total?: number;
+  registros?: number;
+  processos?: number;
+  orgaos_ativos?: number;
+  inclusoes?: number;
+  inclusoes_registros?: number;
+  inclusoes_processos?: number;
+  processamentos?: number;
+  processamentos_registros?: number;
+  processamentos_processos?: number;
+  processados?: number;
+  processados_registros?: number;
+  processados_processos?: number;
+  juntados?: number;
+  juntados_registros?: number;
+  juntados_processos?: number;
+}
+
+export interface ObservabilidadeTotalPorOrgao {
+  orgao: string;
+  total?: number;
+  registros?: number;
+  processos?: number;
+  processados?: number;
+  juntados?: number;
+  processados_registros?: number;
+  processados_processos?: number;
+  juntados_registros?: number;
+  juntados_processos?: number;
+}
+
+export interface ObservabilidadePeriodo {
+  selecionado: string;
+  rotulo: string;
+  inicio?: string | null;
+  fim: string;
+  granularidade_horas: number;
+}
+
+export interface ObservabilidadeResponse {
+  periodo: ObservabilidadePeriodo;
+  orgaos_disponiveis: string[];
+  entrada_localizador_por_orgao: {
+    resumo: ObservabilidadeResumo;
+    totais_por_orgao: ObservabilidadeTotalPorOrgao[];
+    evolucao: Array<Record<string, string | number>>;
+  };
+  inclusao_vs_processamento: {
+    resumo: ObservabilidadeResumo;
+    evolucao: Array<Record<string, string | number>>;
+  };
+  status_por_orgao: {
+    resumo: ObservabilidadeResumo;
+    totais_por_orgao: ObservabilidadeTotalPorOrgao[];
+    evolucao: Array<Record<string, string | number>>;
+  };
   erro?: string;
 }

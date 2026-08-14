@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urlencode
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -8,7 +9,9 @@ from zoneinfo import ZoneInfo
 from django.http import JsonResponse
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
+from django.conf import settings
 
+from .analytics import buscar_observabilidade
 from .services import (
     buscar_metricas,
     buscar_registro_detalhe,
@@ -23,7 +26,18 @@ _SAO_PAULO = ZoneInfo("America/Sao_Paulo")
 
 
 def _contexto_base() -> dict[str, Any]:
-    return {"titulo_app": "AVIPE Painel"}
+    app_js = Path(settings.BASE_DIR) / "frontend" / "dist" / "assets" / "app.js"
+    app_css = Path(settings.BASE_DIR) / "frontend" / "dist" / "assets" / "app.css"
+    asset_version = "dev"
+    if app_js.exists():
+        asset_version = str(int(app_js.stat().st_mtime))
+    elif app_css.exists():
+        asset_version = str(int(app_css.stat().st_mtime))
+
+    return {
+        "titulo_app": "Watcher AVIPE",
+        "asset_version": asset_version,
+    }
 
 
 def react_app(request: HttpRequest) -> HttpResponse:
@@ -72,6 +86,14 @@ def api_dashboard(request: HttpRequest) -> JsonResponse:
                 "siglas_orgaos": listar_siglas_orgaos(),
             }
         )
+    except Exception as exc:  # pragma: no cover
+        return JsonResponse({"erro": str(exc)}, status=500)
+
+
+def api_observabilidade(request: HttpRequest) -> JsonResponse:
+    periodo = request.GET.get("periodo", "today")
+    try:
+        return JsonResponse(buscar_observabilidade(periodo))
     except Exception as exc:  # pragma: no cover
         return JsonResponse({"erro": str(exc)}, status=500)
 
