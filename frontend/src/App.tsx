@@ -21,7 +21,20 @@ type MetricScope = "registros" | "processos";
 type StatusLayerMode = "both" | "processados" | "juntados";
 type HomeChartTab = "localizador" | "fluxo" | "status";
 
-const FILTER_KEYS = ["nuprocesso", "cpf", "sig_orgao", "usuario_logado", "data_insercao", "processado", "juntado"] as const;
+const FILTER_KEYS = [
+  "nuprocesso",
+  "cpf",
+  "sig_orgao",
+  "usuario_logado",
+  "data_insercao_status",
+  "data_insercao_inicio",
+  "data_insercao_fim",
+  "data_processamento_status",
+  "data_processamento_inicio",
+  "data_processamento_fim",
+  "processado",
+  "juntado",
+] as const;
 const PERIOD_OPTIONS = [
   { value: "today", label: "Hoje" },
   { value: "24h", label: "24h" },
@@ -34,9 +47,9 @@ const PERIOD_OPTIONS = [
   { value: "all", label: "Todo período" },
 ] as const;
 const HOME_TABS = [
-  { id: "localizador", label: "Localizador" },
-  { id: "fluxo", label: "Fluxo" },
-  { id: "status", label: "Status por órgão" },
+  { id: "fluxo", label: "Entrada x Processamento" },
+  { id: "localizador", label: "Inclusões por Unidade" },
+  { id: "status", label: "Processamento x Juntada" },
 ] satisfies Array<{ id: HomeChartTab; label: string }>;
 const SERIES_COLORS = ["#5b8cff", "#18c29c", "#f59e0b", "#ef5da8", "#8b5cf6", "#22d3ee", "#f97316", "#94a3b8", "#fb7185", "#2dd4bf"];
 
@@ -48,7 +61,12 @@ const EMPTY_FILTERS: FilterState = {
   cpf: "",
   sig_orgao: "",
   usuario_logado: "",
-  data_insercao: "",
+  data_insercao_status: "",
+  data_insercao_inicio: "",
+  data_insercao_fim: "",
+  data_processamento_status: "",
+  data_processamento_inicio: "",
+  data_processamento_fim: "",
   processado: "",
   juntado: "",
 };
@@ -74,7 +92,9 @@ function App() {
   const [statusLayerMode, setStatusLayerMode] = useState<StatusLayerMode>("both");
   const [showLocalMetrics, setShowLocalMetrics] = useState(false);
   const [selectedOrgans, setSelectedOrgans] = useState<string[]>([]);
-  const [activeHomeTab, setActiveHomeTab] = useState<HomeChartTab>("localizador");
+  const [maxSelectedOrgans, setMaxSelectedOrgans] = useState(5);
+  const [activeHomeTab, setActiveHomeTab] = useState<HomeChartTab>("fluxo");
+  const [showPeriodFilters, setShowPeriodFilters] = useState(false);
 
   useEffect(() => {
     void bootstrap();
@@ -93,6 +113,20 @@ function App() {
     }
     void loadObservabilidade(periodo);
   }, [periodo, currentView]);
+
+  useEffect(() => {
+    setSelectedOrgans((current) => {
+      const available = observabilidade?.orgaos_disponiveis ?? [];
+      const stillVisible = current.filter((item) => available.includes(item));
+
+      if (stillVisible.length >= maxSelectedOrgans) {
+        return stillVisible.slice(0, maxSelectedOrgans);
+      }
+
+      const nextItems = available.filter((item) => !stillVisible.includes(item)).slice(0, maxSelectedOrgans - stillVisible.length);
+      return [...stillVisible, ...nextItems];
+    });
+  }, [maxSelectedOrgans, observabilidade]);
 
   async function bootstrap() {
     setLoading(true);
@@ -115,9 +149,9 @@ function App() {
       setObservabilidade(payload);
       setSelectedOrgans((current) => {
         if (current.length) {
-          return current.filter((item) => payload.orgaos_disponiveis.includes(item)).slice(0, 5);
+          return current.filter((item) => payload.orgaos_disponiveis.includes(item)).slice(0, maxSelectedOrgans);
         }
-        return payload.orgaos_disponiveis.slice(0, 5);
+        return payload.orgaos_disponiveis.slice(0, maxSelectedOrgans);
       });
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Falha ao carregar os gráficos da Home.");
@@ -251,6 +285,16 @@ function App() {
     await handleGoToLista(1);
   }
 
+  async function handleRefreshCurrentView() {
+    setError("");
+    setLoading(true);
+    try {
+      await Promise.all([loadDashboard(), syncFromLocation(false)]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function formatDate(value: unknown) {
     if (!value || typeof value !== "string") {
       return "-";
@@ -288,17 +332,18 @@ function App() {
   return (
     <div className="min-h-screen bg-[#0b1220] text-slate-100">
       <div className="mx-auto max-w-[1700px] px-4 py-5 sm:px-6 lg:px-8">
-        <CompactHeader currentView={currentView} onNavigateHome={handleGoToHome} onNavigatePesquisa={() => void handleGoToLista()} />
+        <CompactHeader
+          currentView={currentView}
+          onNavigateHome={handleGoToHome}
+          onNavigatePesquisa={() => void handleGoToLista()}
+          onRefresh={() => void handleRefreshCurrentView()}
+        />
 
         {error ? (
           <section className="mb-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</section>
         ) : null}
 
-        {loading ? (
-          <section className="rounded-3xl border border-slate-800 bg-slate-900/85 p-8 shadow-2xl shadow-slate-950/40">
-            <p className="text-sm text-slate-300">Carregando o Watcher AVIPE...</p>
-          </section>
-        ) : null}
+        {loading ? <LoadingOverlay /> : null}
 
         {!loading && currentView === "home" && dashboard ? (
           <HomeView
@@ -321,6 +366,8 @@ function App() {
             onStatusLayerModeChange={setStatusLayerMode}
             selectedOrgans={selectedOrgans}
             onSelectedOrgansChange={setSelectedOrgans}
+            maxSelectedOrgans={maxSelectedOrgans}
+            onMaxSelectedOrgansChange={setMaxSelectedOrgans}
             showLocalMetrics={showLocalMetrics}
             onToggleLocalMetrics={() => setShowLocalMetrics((current) => !current)}
           />
@@ -346,19 +393,53 @@ function App() {
             </section>
 
             <section className="rounded-3xl border border-slate-800 bg-slate-900/85 shadow-2xl shadow-slate-950/40">
-              <form className="grid gap-4 p-5 md:grid-cols-[repeat(14,minmax(0,1fr))]" onSubmit={(event) => void handleFilterSubmit(event)}>
-                <Field className="md:col-span-3" label="Processo" value={filters.nuprocesso} onChange={(value) => setFilters((current) => ({ ...current, nuprocesso: value }))} />
+              <form className="grid gap-4 p-5 md:grid-cols-12" onSubmit={(event) => void handleFilterSubmit(event)}>
+                <Field className="md:col-span-2" label="Processo" value={filters.nuprocesso} onChange={(value) => setFilters((current) => ({ ...current, nuprocesso: value }))} />
                 <Field className="md:col-span-2" label="CPF" value={filters.cpf} onChange={(value) => setFilters((current) => ({ ...current, cpf: value }))} />
                 <SelectField className="md:col-span-2" label="Órgão" value={filters.sig_orgao} options={lista?.siglas_orgaos ?? []} onChange={(value) => setFilters((current) => ({ ...current, sig_orgao: value }))} />
-                <Field className="md:col-span-2" label="Usuário" value={filters.usuario_logado} onChange={(value) => setFilters((current) => ({ ...current, usuario_logado: value }))} />
-                <DateField className="md:col-span-2" label="Inserido em" value={filters.data_insercao} onChange={(value) => setFilters((current) => ({ ...current, data_insercao: value }))} />
+                <SelectField className="md:col-span-2" label="Usuário" value={filters.usuario_logado} options={lista?.usuarios_logados ?? []} onChange={(value) => setFilters((current) => ({ ...current, usuario_logado: value }))} />
                 <BinarySelect className="md:col-span-1" label="Processado" value={filters.processado} onChange={(value) => setFilters((current) => ({ ...current, processado: value }))} />
-                <BinarySelect className="md:col-span-1" label="Juntado" value={filters.juntado} onChange={(value) => setFilters((current) => ({ ...current, juntado: value }))} />
-                <div className="md:col-span-1 md:flex md:items-end">
+                <BinarySelect className="md:col-span-1" label="Juntado" value={filters.juntado} includeNullOption onChange={(value) => setFilters((current) => ({ ...current, juntado: value }))} />
+                <div className="md:col-span-2 flex items-end gap-2">
+                  <button
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-950/60 text-slate-200 transition hover:border-cyan-400/35 hover:text-white"
+                    type="button"
+                    aria-label={showPeriodFilters ? "Ocultar filtros de período" : "Expandir filtros de período"}
+                    onClick={() => setShowPeriodFilters((current) => !current)}
+                  >
+                    <svg className={`h-4 w-4 transition ${showPeriodFilters ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M4 7l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
                   <button className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400" type="submit">
                     {loadingList ? "Filtrando..." : "Filtrar"}
                   </button>
                 </div>
+                {showPeriodFilters ? (
+                  <>
+                    <DateFilterGroup
+                      className="md:col-span-5"
+                      label="Inserido em"
+                      statusValue={filters.data_insercao_status}
+                      startValue={filters.data_insercao_inicio}
+                      endValue={filters.data_insercao_fim}
+                      onStatusChange={(value) => setFilters((current) => ({ ...current, data_insercao_status: value }))}
+                      onStartChange={(value) => setFilters((current) => ({ ...current, data_insercao_inicio: value }))}
+                      onEndChange={(value) => setFilters((current) => ({ ...current, data_insercao_fim: value }))}
+                    />
+                    <DateFilterGroup
+                      className="md:col-span-5"
+                      label="Processado em"
+                      statusValue={filters.data_processamento_status}
+                      startValue={filters.data_processamento_inicio}
+                      endValue={filters.data_processamento_fim}
+                      includeNullOption
+                      onStatusChange={(value) => setFilters((current) => ({ ...current, data_processamento_status: value }))}
+                      onStartChange={(value) => setFilters((current) => ({ ...current, data_processamento_inicio: value }))}
+                      onEndChange={(value) => setFilters((current) => ({ ...current, data_processamento_fim: value }))}
+                    />
+                  </>
+                ) : null}
               </form>
             </section>
 
@@ -468,10 +549,12 @@ function CompactHeader({
   currentView,
   onNavigateHome,
   onNavigatePesquisa,
+  onRefresh,
 }: {
   currentView: RouteView;
   onNavigateHome: () => Promise<void>;
   onNavigatePesquisa: () => void;
+  onRefresh: () => void;
 }) {
   return (
     <header className="mb-6 rounded-[24px] border border-slate-800 bg-[linear-gradient(180deg,rgba(25,34,56,0.94)_0%,rgba(18,25,43,0.97)_100%)] px-5 py-4 shadow-2xl shadow-slate-950/45">
@@ -480,9 +563,15 @@ function CompactHeader({
           <div className="text-2xl font-semibold text-white">Watcher AVIPE</div>
           <p className="mt-1 text-sm text-slate-400">Monitoramento operacional do fluxo de pesquisas e do processamento.</p>
         </div>
-        <nav className="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-950/55 p-1.5">
+        <nav className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/55 p-1.5">
           <NavButton label="Home" active={currentView === "home"} onClick={() => void onNavigateHome()} />
           <NavButton label="Pesquisa" active={currentView === "lista" || currentView === "detalhe"} onClick={onNavigatePesquisa} />
+          <IconButton label="Recarregar" onClick={onRefresh}>
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M16.5 10a6.5 6.5 0 1 1-1.4-4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M16.5 3.5v4h-4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </IconButton>
         </nav>
       </div>
     </header>
@@ -502,6 +591,38 @@ function NavButton({ label, active, onClick }: { label: string; active: boolean;
     >
       {label}
     </button>
+  );
+}
+
+function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-transparent bg-transparent text-slate-300 transition hover:border-slate-700 hover:bg-slate-900/80 hover:text-white"
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function LoadingOverlay() {
+  return (
+    <section className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex flex-col items-center gap-5">
+        <div className="relative flex h-20 w-20 items-center justify-center">
+          <span className="absolute h-20 w-20 rounded-full border border-cyan-400/20 bg-cyan-400/5 animate-ping" />
+          <span className="h-16 w-16 rounded-full border-2 border-cyan-300/25 border-t-cyan-300 border-r-sky-400 animate-spin" />
+          <span className="absolute h-7 w-7 rounded-full bg-[linear-gradient(135deg,#6d5efc_0%,#4cc7ff_100%)] shadow-[0_0_24px_rgba(76,199,255,0.45)]" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-semibold tracking-[0.2em] text-cyan-200">WATCHER AVIPE</p>
+          <p className="mt-2 text-sm text-slate-400">Carregando dados e reorganizando a leitura.</p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -525,6 +646,8 @@ function HomeView({
   onStatusLayerModeChange,
   selectedOrgans,
   onSelectedOrgansChange,
+  maxSelectedOrgans,
+  onMaxSelectedOrgansChange,
   showLocalMetrics,
   onToggleLocalMetrics,
 }: {
@@ -547,6 +670,8 @@ function HomeView({
   onStatusLayerModeChange: (value: StatusLayerMode) => void;
   selectedOrgans: string[];
   onSelectedOrgansChange: (items: string[]) => void;
+  maxSelectedOrgans: number;
+  onMaxSelectedOrgansChange: (value: number) => void;
   showLocalMetrics: boolean;
   onToggleLocalMetrics: () => void;
 }) {
@@ -582,7 +707,7 @@ function HomeView({
       ? "Órgãos com envios ao localizador"
       : activeHomeTab === "fluxo"
         ? "Inclusão no localizador x processamento"
-        : "Processados e juntados por órgão";
+        : "Processamento x Juntada por Unidade";
 
   const activeBadge =
     activeHomeTab === "localizador"
@@ -593,7 +718,7 @@ function HomeView({
             : observabilidade?.inclusao_vs_processamento.resumo.inclusoes_processos ?? 0} ${scopeLabel}`
         : `${statusTotals.length} órgãos com atividade`;
 
-  const activeSummary =
+const activeSummary =
     activeHomeTab === "localizador"
       ? `No período ${observabilidade?.periodo.rotulo.toLowerCase() ?? ""}, houve ${
           metricScope === "registros"
@@ -602,7 +727,14 @@ function HomeView({
         } ${scopeLabel} com inclusão no localizador.`
       : activeHomeTab === "fluxo"
         ? `Comparativo temporal entre entradas no localizador e processamentos concluídos em ${scopeLabel}, dentro de ${observabilidade?.periodo.rotulo.toLowerCase() ?? ""}.`
-        : `Camadas independentes para processados e juntados, com leitura combinada ou isolada em ${scopeLabel}.`;
+        : "";
+
+  const displayTitle =
+    activeHomeTab === "localizador"
+      ? "Inclusões por unidade"
+      : activeHomeTab === "fluxo"
+        ? "Entrada x processamento"
+        : activeTitle;
 
   const activeExtraControls =
     activeHomeTab === "status" ? (
@@ -679,7 +811,7 @@ function HomeView({
 
         {!loadingHome && observabilidade ? (
           <ChartCard
-            title={activeTitle}
+            title={displayTitle}
             badge={activeBadge}
             summary={activeSummary}
             chartMode={activeChartMode}
@@ -700,7 +832,13 @@ function HomeView({
 
             {activeHomeTab === "status" ? (
               <div className="space-y-4">
-                <OrganSelector availableOrgans={observabilidade.orgaos_disponiveis} selectedOrgans={selectedOrgans} onChange={onSelectedOrgansChange} />
+                <OrganSelector
+                  availableOrgans={observabilidade.orgaos_disponiveis}
+                  selectedOrgans={selectedOrgans}
+                  maxSelectedOrgans={maxSelectedOrgans}
+                  onMaxSelectedOrgansChange={onMaxSelectedOrgansChange}
+                  onChange={onSelectedOrgansChange}
+                />
                 {activeChartMode === "bar" ? (
                   <StatusTotalsChart data={statusTotals} layerMode={statusLayerMode} metricScope={metricScope} />
                 ) : (
@@ -787,7 +925,7 @@ function ChartCard({
 }: {
   title: string;
   badge: string;
-  summary: string;
+  summary?: string;
   chartMode: ChartMode;
   onChartModeChange: (value: ChartMode) => void;
   metricScope: MetricScope;
@@ -804,7 +942,7 @@ function ChartCard({
             <h3 className="text-xl font-semibold text-white">{title}</h3>
             <span className="rounded-full border border-fuchsia-400/25 bg-fuchsia-400/10 px-3 py-1 text-xs font-semibold text-fuchsia-200">{badge}</span>
           </div>
-          <p className="mt-2 max-w-3xl text-sm text-slate-400">{summary}</p>
+          {summary ? <p className="mt-2 max-w-3xl text-sm text-slate-400">{summary}</p> : null}
         </div>
         <div className="xl:max-w-full">
           <div className="flex flex-nowrap items-center gap-3 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-950/45 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
@@ -963,8 +1101,8 @@ function FluxoTimelineChart({
 }) {
   const inclusoesKey = metricScope === "registros" ? "inclusoes_registros" : "inclusoes_processos";
   const processamentosKey = metricScope === "registros" ? "processamentos_registros" : "processamentos_processos";
-  const inclusoesLabel = metricScope === "registros" ? "Inclusões por registro" : "Inclusões por processo";
-  const processamentosLabel = metricScope === "registros" ? "Processamentos por registro" : "Processamentos por processo";
+  const inclusoesLabel = metricScope === "registros" ? "Registros incluídos" : "Autos incluídos";
+  const processamentosLabel = metricScope === "registros" ? "Registros processados" : "Autos processados";
   const dayChangeMarkers = getDayChangeMarkers(data, periodKey);
 
   if (mode === "bar") {
@@ -1004,10 +1142,14 @@ function FluxoTimelineChart({
 function OrganSelector({
   availableOrgans,
   selectedOrgans,
+  maxSelectedOrgans,
+  onMaxSelectedOrgansChange,
   onChange,
 }: {
   availableOrgans: string[];
   selectedOrgans: string[];
+  maxSelectedOrgans: number;
+  onMaxSelectedOrgansChange: (value: number) => void;
   onChange: (items: string[]) => void;
 }) {
   function toggleOrgan(orgao: string) {
@@ -1015,35 +1157,84 @@ function OrganSelector({
       onChange(selectedOrgans.filter((item) => item !== orgao));
       return;
     }
-    if (selectedOrgans.length >= 5) {
+    if (selectedOrgans.length >= maxSelectedOrgans) {
       onChange([...selectedOrgans.slice(1), orgao]);
       return;
     }
     onChange([...selectedOrgans, orgao]);
   }
 
+  function selectAll() {
+    onChange(availableOrgans.slice(0, maxSelectedOrgans));
+  }
+
+  function clearAll() {
+    onChange([]);
+  }
+
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Órgãos destacados</p>
-        <span className="text-xs text-slate-500">Até 5 séries visíveis</span>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {availableOrgans.map((orgao) => {
-          const active = selectedOrgans.includes(orgao);
-          return (
+        <div className="flex flex-wrap items-center gap-2">
+          {[5, 15, 30].map((limit) => (
             <button
-              key={orgao}
-              className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                active ? "border-cyan-400/30 bg-cyan-400/12 text-cyan-100" : "border-slate-700 bg-slate-950/50 text-slate-300 hover:border-cyan-400/25 hover:text-white"
+              key={limit}
+              className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold transition ${
+                maxSelectedOrgans === limit
+                  ? "border-fuchsia-300/60 bg-fuchsia-400/15 text-fuchsia-100"
+                  : "border-slate-700 bg-slate-950/35 text-slate-400 hover:border-fuchsia-300/35 hover:text-slate-200"
               }`}
               type="button"
-              onClick={() => toggleOrgan(orgao)}
+              onClick={() => onMaxSelectedOrgansChange(limit)}
             >
-              {orgao}
+              {`Até ${limit}`}
             </button>
-          );
-        })}
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {availableOrgans.map((orgao) => {
+            const active = selectedOrgans.includes(orgao);
+            return (
+              <button
+                key={orgao}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                  active
+                    ? "border-cyan-300/70 bg-[linear-gradient(135deg,rgba(34,211,238,0.28),rgba(59,130,246,0.18))] text-white shadow-[0_0_0_1px_rgba(103,232,249,0.18),0_10px_30px_rgba(34,211,238,0.12)]"
+                    : "border-slate-700/90 bg-slate-950/25 text-slate-500 opacity-80 hover:border-cyan-400/25 hover:bg-slate-950/45 hover:text-slate-200 hover:opacity-100"
+                }`}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggleOrgan(orgao)}
+              >
+                <span
+                  className={`h-2.5 w-2.5 rounded-full transition ${
+                    active ? "bg-cyan-200 shadow-[0_0_12px_rgba(165,243,252,0.95)]" : "bg-slate-700"
+                  }`}
+                />
+                {orgao}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="inline-flex rounded-full border border-amber-300/35 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:border-amber-200/60 hover:bg-amber-400/16"
+            type="button"
+            onClick={selectAll}
+          >
+            Todos
+          </button>
+          <button
+            className="inline-flex rounded-full border border-slate-600 bg-slate-900/65 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/80"
+            type="button"
+            onClick={clearAll}
+          >
+            Nenhum
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1278,6 +1469,65 @@ function DateField({ label, value, onChange, className = "" }: { label: string; 
   );
 }
 
+function ProcessamentoStatusSelect({
+  label,
+  value,
+  onChange,
+  className = "",
+  includeNullOption = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  includeNullOption?: boolean;
+}) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="mb-2 block text-sm font-medium text-slate-300">{label}</span>
+      <select className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/15" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Todos</option>
+        <option value="filled">Com data</option>
+        {includeNullOption ? <option value="null">-</option> : null}
+      </select>
+    </label>
+  );
+}
+
+function DateFilterGroup({
+  label,
+  statusValue,
+  startValue,
+  endValue,
+  onStatusChange,
+  onStartChange,
+  onEndChange,
+  className = "",
+  includeNullOption = false,
+}: {
+  label: string;
+  statusValue: string;
+  startValue: string;
+  endValue: string;
+  onStatusChange: (value: string) => void;
+  onStartChange: (value: string) => void;
+  onEndChange: (value: string) => void;
+  className?: string;
+  includeNullOption?: boolean;
+}) {
+  const showRange = statusValue === "filled";
+
+  return (
+    <div className={`rounded-2xl border border-slate-800 bg-slate-950/35 p-3 ${className}`}>
+      <div className="grid gap-3 md:grid-cols-3">
+        <ProcessamentoStatusSelect label={label} value={statusValue} includeNullOption={includeNullOption} onChange={onStatusChange} />
+        <DateField label={`${label} de`} value={startValue} onChange={onStartChange} className={showRange ? "" : "invisible pointer-events-none"} />
+        <DateField label={`${label} até`} value={endValue} onChange={onEndChange} className={showRange ? "" : "invisible pointer-events-none"} />
+      </div>
+    </div>
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -1306,13 +1556,26 @@ function SelectField({
   );
 }
 
-function BinarySelect({ label, value, onChange, className = "" }: { label: string; value: string; onChange: (value: string) => void; className?: string }) {
+function BinarySelect({
+  label,
+  value,
+  onChange,
+  className = "",
+  includeNullOption = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  includeNullOption?: boolean;
+}) {
   return (
     <label className={`block ${className}`}>
       <span className="mb-2 block text-sm font-medium text-slate-300">{label}</span>
       <select className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 text-sm text-slate-100 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/15" value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">Todos</option>
         <option value="1">Sim</option>
+        {includeNullOption ? <option value="null">-</option> : null}
         <option value="0">Não</option>
       </select>
     </label>

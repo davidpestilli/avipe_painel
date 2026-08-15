@@ -41,6 +41,7 @@ export interface PesquisaRegistro {
 export interface ListaResponse {
   filtros: Record<string, string>;
   siglas_orgaos: string[];
+  usuarios_logados: string[];
   paginacao: {
     itens: PesquisaRegistro[];
     pagina: number;

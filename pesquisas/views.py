@@ -17,6 +17,7 @@ from .services import (
     buscar_registro_detalhe,
     consultar_registros,
     listar_siglas_orgaos,
+    listar_usuarios_logados,
     listar_ultimos_registros,
     obter_info_banco,
 )
@@ -104,7 +105,12 @@ def api_lista_pesquisas(request: HttpRequest) -> JsonResponse:
         "cpf": request.GET.get("cpf", ""),
         "sig_orgao": request.GET.get("sig_orgao", ""),
         "usuario_logado": request.GET.get("usuario_logado", ""),
-        "data_insercao": request.GET.get("data_insercao", ""),
+        "data_insercao_status": request.GET.get("data_insercao_status", ""),
+        "data_insercao_inicio": request.GET.get("data_insercao_inicio", ""),
+        "data_insercao_fim": request.GET.get("data_insercao_fim", ""),
+        "data_processamento_status": request.GET.get("data_processamento_status", ""),
+        "data_processamento_inicio": request.GET.get("data_processamento_inicio", ""),
+        "data_processamento_fim": request.GET.get("data_processamento_fim", ""),
         "processado": request.GET.get("processado", ""),
         "juntado": request.GET.get("juntado", ""),
     }
@@ -118,6 +124,7 @@ def api_lista_pesquisas(request: HttpRequest) -> JsonResponse:
             {
                 "filtros": filtros,
                 "siglas_orgaos": listar_siglas_orgaos(),
+                "usuarios_logados": listar_usuarios_logados(),
                 "paginacao": {
                     "itens": [_serializar_registro(item) for item in paginacao.itens],
                     "pagina": paginacao.pagina,

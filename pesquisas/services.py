@@ -181,6 +181,19 @@ def listar_siglas_orgaos() -> list[str]:
             return [linha[0] for linha in cursor.fetchall()]
 
 
+def listar_usuarios_logados() -> list[str]:
+    sql = """
+        SELECT DISTINCT usuario_logado
+        FROM avipe_pesquisa_endereco
+        WHERE usuario_logado IS NOT NULL AND usuario_logado <> ''
+        ORDER BY usuario_logado
+    """
+    with abrir_conexao() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(sql)
+            return [linha[0] for linha in cursor.fetchall()]
+
+
 def consultar_registros(
     filtros: dict[str, str],
     pagina: int = 1,
@@ -199,17 +212,37 @@ def consultar_registros(
         where.append("sig_orgao = %s")
         params.append(filtros["sig_orgao"].strip())
     if filtros.get("usuario_logado"):
-        where.append("usuario_logado LIKE %s")
-        params.append(f"%{filtros['usuario_logado'].strip()}%")
-    if filtros.get("data_insercao"):
-        where.append("DATE(data_insercao) = %s")
-        params.append(filtros["data_insercao"].strip())
+        where.append("usuario_logado = %s")
+        params.append(filtros["usuario_logado"].strip())
+    data_insercao_status = filtros.get("data_insercao_status", "").strip()
+    data_insercao_inicio = filtros.get("data_insercao_inicio", "").strip()
+    data_insercao_fim = filtros.get("data_insercao_fim", "").strip() or data_insercao_inicio
+    if data_insercao_status == "filled" and data_insercao_inicio:
+        where.append("DATE(data_insercao) >= %s")
+        params.append(data_insercao_inicio)
+        where.append("DATE(data_insercao) <= %s")
+        params.append(data_insercao_fim)
     if filtros.get("processado") in {"0", "1"}:
         where.append("processado = %s")
         params.append(int(filtros["processado"]))
+    data_processamento_status = filtros.get("data_processamento_status", "").strip()
+    data_processamento_inicio = filtros.get("data_processamento_inicio", "").strip()
+    data_processamento_fim = filtros.get("data_processamento_fim", "").strip() or data_processamento_inicio
+    if data_processamento_status == "null":
+        where.append("data_processamento IS NULL")
+    else:
+        if data_processamento_status == "filled":
+            where.append("data_processamento IS NOT NULL")
+        if data_processamento_inicio:
+            where.append("DATE(data_processamento) >= %s")
+            params.append(data_processamento_inicio)
+            where.append("DATE(data_processamento) <= %s")
+            params.append(data_processamento_fim)
     if filtros.get("juntado") in {"0", "1"}:
         where.append("juntado = %s")
         params.append(int(filtros["juntado"]))
+    elif filtros.get("juntado") == "null":
+        where.append("juntado IS NULL")
 
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
     offset = (pagina - 1) * por_pagina
