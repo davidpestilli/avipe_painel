@@ -148,13 +148,56 @@ def _ordenar_orgaos(mapa: dict[str, int]) -> list[str]:
     return [orgao for orgao, _ in sorted(mapa.items(), key=lambda item: (-item[1], item[0]))]
 
 
-def _incrementar_set(
-    mapa: dict[Any, set[str]],
-    chave: Any,
-    processo: str | None,
-) -> None:
+def _incrementar_set(mapa: dict[Any, set[str]], chave: Any, processo: str | None) -> None:
     if processo:
         mapa[chave].add(processo)
+
+
+def _formatar_data_referencia(valor: datetime | None) -> str:
+    if valor is None:
+        return "Sem data"
+    return valor.strftime("%Y-%m-%d")
+
+
+def _registrar_divergencia(
+    mapa: dict[tuple[str, str], dict[str, Any]],
+    orgao: str,
+    data_referencia: datetime | None,
+    processo: str | None,
+) -> None:
+    chave = (orgao, _formatar_data_referencia(data_referencia))
+    item = mapa.setdefault(
+        chave,
+        {
+            "orgao": orgao,
+            "data_referencia": chave[1],
+            "registros": 0,
+            "processos_set": set(),
+        },
+    )
+    item["registros"] += 1
+    if processo:
+        item["processos_set"].add(processo)
+
+
+def _serializar_divergencias(mapa: dict[tuple[str, str], dict[str, Any]]) -> dict[str, Any]:
+    itens = sorted(
+        (
+            {
+                "orgao": item["orgao"],
+                "data_referencia": item["data_referencia"],
+                "registros": item["registros"],
+                "processos": len(item["processos_set"]),
+            }
+            for item in mapa.values()
+        ),
+        key=lambda item: (-item["registros"], -item["processos"], item["data_referencia"], item["orgao"]),
+    )
+    return {
+        "registros": sum(item["registros"] for item in itens),
+        "processos": sum(item["processos"] for item in itens),
+        "itens": itens,
+    }
 
 
 def buscar_observabilidade(period_key: str) -> dict[str, Any]:
@@ -169,6 +212,25 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
             cursor.execute(sql)
             linhas = list(cursor.fetchall())
 
+    total_processos_geral: set[str] = set()
+    processados_processos_geral: set[str] = set()
+    juntados_processos_geral: set[str] = set()
+    total_processos_periodo: set[str] = set()
+    processados_processos_periodo: set[str] = set()
+    juntados_processos_periodo: set[str] = set()
+
+    total_registros_geral = 0
+    processados_registros_geral = 0
+    juntados_registros_geral = 0
+    total_registros_periodo = 0
+    processados_registros_periodo = 0
+    juntados_registros_periodo = 0
+
+    divergencias_processados_geral: dict[tuple[str, str], dict[str, Any]] = {}
+    divergencias_processados_periodo: dict[tuple[str, str], dict[str, Any]] = {}
+    divergencias_juntados_geral: dict[tuple[str, str], dict[str, Any]] = {}
+    divergencias_juntados_periodo: dict[tuple[str, str], dict[str, Any]] = {}
+
     inclusoes_registros_por_orgao: dict[str, int] = defaultdict(int)
     inclusoes_processos_por_orgao: dict[str, set[str]] = defaultdict(set)
     inclusoes_timeline_registros: dict[datetime, dict[str, int]] = defaultdict(lambda: defaultdict(int))
@@ -179,6 +241,12 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
     )
     throughput_timeline_processos: dict[datetime, dict[str, set[str]]] = defaultdict(
         lambda: {"inclusoes": set(), "processamentos": set()}
+    )
+    throughput_timeline_registros_por_orgao: dict[datetime, dict[str, dict[str, int]]] = defaultdict(
+        lambda: defaultdict(lambda: {"inclusoes": 0, "processamentos": 0})
+    )
+    throughput_timeline_processos_por_orgao: dict[datetime, dict[str, dict[str, set[str]]]] = defaultdict(
+        lambda: defaultdict(lambda: {"inclusoes": set(), "processamentos": set()})
     )
 
     processados_por_orgao: dict[str, dict[str, int]] = defaultdict(lambda: {"processados": 0, "juntados": 0})
@@ -200,43 +268,76 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
         processado = int(linha.get("processado") or 0)
         juntado = int(linha.get("juntado") or 0)
 
+        total_registros_geral += 1
+        if processo:
+            total_processos_geral.add(processo)
+        if processado:
+            processados_registros_geral += 1
+            if processo:
+                processados_processos_geral.add(processo)
+        else:
+            _registrar_divergencia(divergencias_processados_geral, orgao, inclusao_localizador, processo)
+        if juntado:
+            juntados_registros_geral += 1
+            if processo:
+                juntados_processos_geral.add(processo)
+        elif processado:
+            _registrar_divergencia(divergencias_juntados_geral, orgao, data_processamento, processo)
+
         if _esta_no_periodo(inclusao_localizador, periodo):
+            total_registros_periodo += 1
+            if processo:
+                total_processos_periodo.add(processo)
             inclusoes_registros_por_orgao[orgao] += 1
             _incrementar_set(inclusoes_processos_por_orgao, orgao, processo)
 
-            bucket = (
+            bucket_inclusao = (
                 _bucket_rolling_fim(inclusao_localizador, periodo)
                 if periodo.kind == "rolling"
                 else _bucket_inicio(inclusao_localizador, periodo.bucket_hours)
             )
-            inclusoes_timeline_registros[bucket][orgao] += 1
+            inclusoes_timeline_registros[bucket_inclusao][orgao] += 1
             if processo:
-                inclusoes_timeline_processos[bucket][orgao].add(processo)
-            throughput_timeline_registros[bucket]["inclusoes"] += 1
+                inclusoes_timeline_processos[bucket_inclusao][orgao].add(processo)
+            throughput_timeline_registros[bucket_inclusao]["inclusoes"] += 1
+            throughput_timeline_registros_por_orgao[bucket_inclusao][orgao]["inclusoes"] += 1
             if processo:
-                throughput_timeline_processos[bucket]["inclusoes"].add(processo)
+                throughput_timeline_processos[bucket_inclusao]["inclusoes"].add(processo)
+                throughput_timeline_processos_por_orgao[bucket_inclusao][orgao]["inclusoes"].add(processo)
+            if not processado:
+                _registrar_divergencia(divergencias_processados_periodo, orgao, inclusao_localizador, processo)
 
         if _esta_no_periodo(data_processamento, periodo):
-            bucket = (
+            bucket_processamento = (
                 _bucket_rolling_fim(data_processamento, periodo)
                 if periodo.kind == "rolling"
                 else _bucket_inicio(data_processamento, periodo.bucket_hours)
             )
-            throughput_timeline_registros[bucket]["processamentos"] += 1
+            throughput_timeline_registros[bucket_processamento]["processamentos"] += 1
+            throughput_timeline_registros_por_orgao[bucket_processamento][orgao]["processamentos"] += 1
             if processo:
-                throughput_timeline_processos[bucket]["processamentos"].add(processo)
+                throughput_timeline_processos[bucket_processamento]["processamentos"].add(processo)
+                throughput_timeline_processos_por_orgao[bucket_processamento][orgao]["processamentos"].add(processo)
+
             if processado:
+                processados_registros_periodo += 1
                 processados_por_orgao[orgao]["processados"] += 1
-                processados_timeline[bucket][orgao]["processados"] += 1
+                processados_timeline[bucket_processamento][orgao]["processados"] += 1
                 if processo:
+                    processados_processos_periodo.add(processo)
                     processados_processos_por_orgao[orgao]["processados"].add(processo)
-                    processados_timeline_processos[bucket][orgao]["processados"].add(processo)
+                    processados_timeline_processos[bucket_processamento][orgao]["processados"].add(processo)
+
             if juntado:
+                juntados_registros_periodo += 1
                 processados_por_orgao[orgao]["juntados"] += 1
-                processados_timeline[bucket][orgao]["juntados"] += 1
+                processados_timeline[bucket_processamento][orgao]["juntados"] += 1
                 if processo:
+                    juntados_processos_periodo.add(processo)
                     processados_processos_por_orgao[orgao]["juntados"].add(processo)
-                    processados_timeline_processos[bucket][orgao]["juntados"].add(processo)
+                    processados_timeline_processos[bucket_processamento][orgao]["juntados"].add(processo)
+            elif processado:
+                _registrar_divergencia(divergencias_juntados_periodo, orgao, data_processamento, processo)
 
     orgaos_ordenados = _ordenar_orgaos(
         inclusoes_registros_por_orgao
@@ -244,17 +345,11 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
     )
     if not orgaos_ordenados:
         orgaos_ordenados = _ordenar_orgaos(
-            {
-                orgao: dados["processados"] + dados["juntados"]
-                for orgao, dados in processados_por_orgao.items()
-            }
+            {orgao: dados["processados"] + dados["juntados"] for orgao, dados in processados_por_orgao.items()}
         )
 
     timeline_inclusoes = []
-    for bucket in _iterar_buckets_periodo(
-        periodo,
-        set(inclusoes_timeline_registros) | set(inclusoes_timeline_processos),
-    ):
+    for bucket in _iterar_buckets_periodo(periodo, set(inclusoes_timeline_registros) | set(inclusoes_timeline_processos)):
         por_orgao_registros = inclusoes_timeline_registros.get(bucket, {})
         por_orgao_processos = inclusoes_timeline_processos.get(bucket, {})
         registro: dict[str, Any] = {
@@ -271,34 +366,30 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
         timeline_inclusoes.append(registro)
 
     timeline_throughput = []
-    for bucket in _iterar_buckets_periodo(
-        periodo,
-        set(throughput_timeline_registros) | set(throughput_timeline_processos),
-    ):
+    for bucket in _iterar_buckets_periodo(periodo, set(throughput_timeline_registros) | set(throughput_timeline_processos)):
         totais_registros = throughput_timeline_registros.get(bucket, {"inclusoes": 0, "processamentos": 0})
-        totais_processos = throughput_timeline_processos.get(
-            bucket,
-            {"inclusoes": set(), "processamentos": set()},
-        )
-        timeline_throughput.append(
-            {
-                "bucket": bucket.isoformat(),
-                "label": _formatar_bucket(bucket, periodo.bucket_hours),
-                "inclusoes": totais_registros["inclusoes"],
-                "processamentos": totais_registros["processamentos"],
-                "inclusoes_registros": totais_registros["inclusoes"],
-                "inclusoes_processos": len(totais_processos["inclusoes"]),
-                "processamentos_registros": totais_registros["processamentos"],
-                "processamentos_processos": len(totais_processos["processamentos"]),
-            }
-        )
+        totais_processos = throughput_timeline_processos.get(bucket, {"inclusoes": set(), "processamentos": set()})
+        registro = {
+            "bucket": bucket.isoformat(),
+            "label": _formatar_bucket(bucket, periodo.bucket_hours),
+            "inclusoes": totais_registros["inclusoes"],
+            "processamentos": totais_registros["processamentos"],
+            "inclusoes_registros": totais_registros["inclusoes"],
+            "inclusoes_processos": len(totais_processos["inclusoes"]),
+            "processamentos_registros": totais_registros["processamentos"],
+            "processamentos_processos": len(totais_processos["processamentos"]),
+        }
+        for orgao, dados in throughput_timeline_registros_por_orgao.get(bucket, {}).items():
+            registro[f"{orgao}__inclusoes_registros"] = dados["inclusoes"]
+            registro[f"{orgao}__processamentos_registros"] = dados["processamentos"]
+        for orgao, dados in throughput_timeline_processos_por_orgao.get(bucket, {}).items():
+            registro[f"{orgao}__inclusoes_processos"] = len(dados["inclusoes"])
+            registro[f"{orgao}__processamentos_processos"] = len(dados["processamentos"])
+        timeline_throughput.append(registro)
 
     timeline_status = []
-    for bucket in _iterar_buckets_periodo(
-        periodo,
-        set(processados_timeline) | set(processados_timeline_processos),
-    ):
-        registro = {
+    for bucket in _iterar_buckets_periodo(periodo, set(processados_timeline) | set(processados_timeline_processos)):
+        registro: dict[str, Any] = {
             "bucket": bucket.isoformat(),
             "label": _formatar_bucket(bucket, periodo.bucket_hours),
         }
@@ -319,6 +410,34 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
             "inicio": periodo.start_local.isoformat() if periodo.start_local else None,
             "fim": periodo.end_local.isoformat(),
             "granularidade_horas": periodo.bucket_hours,
+        },
+        "metricas": {
+            "registros": {
+                "geral": total_registros_geral,
+                "periodo": total_registros_periodo,
+            },
+            "processos": {
+                "geral": len(total_processos_geral),
+                "periodo": len(total_processos_periodo),
+            },
+            "processados": {
+                "geral": processados_registros_geral,
+                "periodo": processados_registros_periodo,
+            },
+            "juntados": {
+                "geral": juntados_registros_geral,
+                "periodo": juntados_registros_periodo,
+            },
+        },
+        "divergencias": {
+            "processados": {
+                "geral": _serializar_divergencias(divergencias_processados_geral),
+                "periodo": _serializar_divergencias(divergencias_processados_periodo),
+            },
+            "juntados": {
+                "geral": _serializar_divergencias(divergencias_juntados_geral),
+                "periodo": _serializar_divergencias(divergencias_juntados_periodo),
+            },
         },
         "orgaos_disponiveis": orgaos_ordenados,
         "entrada_localizador_por_orgao": {
@@ -356,13 +475,9 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
                 "processados": sum(item["processados"] for item in processados_por_orgao.values()),
                 "juntados": sum(item["juntados"] for item in processados_por_orgao.values()),
                 "processados_registros": sum(item["processados"] for item in processados_por_orgao.values()),
-                "processados_processos": sum(
-                    len(item["processados"]) for item in processados_processos_por_orgao.values()
-                ),
+                "processados_processos": sum(len(item["processados"]) for item in processados_processos_por_orgao.values()),
                 "juntados_registros": sum(item["juntados"] for item in processados_por_orgao.values()),
-                "juntados_processos": sum(
-                    len(item["juntados"]) for item in processados_processos_por_orgao.values()
-                ),
+                "juntados_processos": sum(len(item["juntados"]) for item in processados_processos_por_orgao.values()),
             },
             "totais_por_orgao": [
                 {
@@ -370,19 +485,12 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
                     "processados": processados_por_orgao.get(orgao, {}).get("processados", 0),
                     "juntados": processados_por_orgao.get(orgao, {}).get("juntados", 0),
                     "processados_registros": processados_por_orgao.get(orgao, {}).get("processados", 0),
-                    "processados_processos": len(
-                        processados_processos_por_orgao.get(orgao, {}).get("processados", set())
-                    ),
+                    "processados_processos": len(processados_processos_por_orgao.get(orgao, {}).get("processados", set())),
                     "juntados_registros": processados_por_orgao.get(orgao, {}).get("juntados", 0),
-                    "juntados_processos": len(
-                        processados_processos_por_orgao.get(orgao, {}).get("juntados", set())
-                    ),
+                    "juntados_processos": len(processados_processos_por_orgao.get(orgao, {}).get("juntados", set())),
                 }
                 for orgao in _ordenar_orgaos(
-                    {
-                        orgao: dados["processados"] + dados["juntados"]
-                        for orgao, dados in processados_por_orgao.items()
-                    }
+                    {orgao: dados["processados"] + dados["juntados"] for orgao, dados in processados_por_orgao.items()}
                 )
             ],
             "evolucao": timeline_status,

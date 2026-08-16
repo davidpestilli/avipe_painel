@@ -1,6 +1,5 @@
 from django.urls import path
 
-from . import legacy_views
 from . import views
 
 app_name = "pesquisas"
@@ -15,7 +14,4 @@ urlpatterns = [
     path("home/", views.react_app, name="home"),
     path("pesquisas/", views.react_app, name="lista"),
     path("pesquisas/detalhe/", views.react_app, name="detalhe"),
-    path("legado/", legacy_views.dashboard, name="legacy_dashboard"),
-    path("legado/pesquisas/", legacy_views.lista_pesquisas, name="legacy_lista"),
-    path("legado/pesquisas/detalhe/", legacy_views.detalhe_pesquisa, name="legacy_detalhe"),
 ]

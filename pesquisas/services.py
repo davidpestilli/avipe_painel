@@ -25,6 +25,7 @@ class Paginacao:
     pagina: int
     por_pagina: int
     total: int
+    total_processos: int
     total_paginas: int
 
     @property
@@ -238,7 +239,9 @@ def consultar_registros(
             params.append(data_processamento_inicio)
             where.append("DATE(data_processamento) <= %s")
             params.append(data_processamento_fim)
-    if filtros.get("juntado") in {"0", "1"}:
+    if filtros.get("juntado") == "pending":
+        where.append("(juntado = 0 OR juntado IS NULL)")
+    elif filtros.get("juntado") in {"0", "1"}:
         where.append("juntado = %s")
         params.append(int(filtros["juntado"]))
     elif filtros.get("juntado") == "null":
@@ -248,6 +251,11 @@ def consultar_registros(
     offset = (pagina - 1) * por_pagina
 
     sql_total = f"SELECT COUNT(*) AS total FROM avipe_pesquisa_endereco {where_sql}"
+    sql_total_processos = f"""
+        SELECT COUNT(DISTINCT COALESCE(NULLIF(TRIM(nuprocesso), ''), '__SEM_PROCESSO__')) AS total_processos
+        FROM avipe_pesquisa_endereco
+        {where_sql}
+    """
     sql_registros = f"""
         SELECT id, nuprocesso, cpf, sig_orgao, ip_cliente, usuario_logado,
                data_insercao, data_processamento, data_inclusao_localizador,
@@ -262,6 +270,8 @@ def consultar_registros(
         with conn.cursor(dictionary=True) as cursor:
             cursor.execute(sql_total, params)
             total = cursor.fetchone()["total"]
+            cursor.execute(sql_total_processos, params)
+            total_processos = cursor.fetchone()["total_processos"]
             cursor.execute(sql_registros, [*params, por_pagina, offset])
             itens = list(cursor.fetchall())
 
@@ -271,6 +281,7 @@ def consultar_registros(
         pagina=pagina,
         por_pagina=por_pagina,
         total=total,
+        total_processos=total_processos,
         total_paginas=total_paginas,
     )
 

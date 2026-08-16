@@ -47,6 +47,7 @@ export interface ListaResponse {
     pagina: number;
     por_pagina: number;
     total: number;
+    total_processos: number;
     total_paginas: number;
     tem_anterior: boolean;
     tem_proxima: boolean;
@@ -101,8 +102,42 @@ export interface ObservabilidadePeriodo {
   granularidade_horas: number;
 }
 
+export interface ObservabilidadeMetricaComparativa {
+  geral: number;
+  periodo: number;
+}
+
+export interface ObservabilidadeDivergenciaItem {
+  orgao: string;
+  data_referencia: string;
+  registros: number;
+  processos: number;
+}
+
+export interface ObservabilidadeDivergenciaResumo {
+  registros: number;
+  processos: number;
+  itens: ObservabilidadeDivergenciaItem[];
+}
+
 export interface ObservabilidadeResponse {
   periodo: ObservabilidadePeriodo;
+  metricas: {
+    registros: ObservabilidadeMetricaComparativa;
+    processos: ObservabilidadeMetricaComparativa;
+    processados: ObservabilidadeMetricaComparativa;
+    juntados: ObservabilidadeMetricaComparativa;
+  };
+  divergencias: {
+    processados: {
+      geral: ObservabilidadeDivergenciaResumo;
+      periodo: ObservabilidadeDivergenciaResumo;
+    };
+    juntados: {
+      geral: ObservabilidadeDivergenciaResumo;
+      periodo: ObservabilidadeDivergenciaResumo;
+    };
+  };
   orgaos_disponiveis: string[];
   entrada_localizador_por_orgao: {
     resumo: ObservabilidadeResumo;

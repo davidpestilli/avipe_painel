@@ -6,16 +6,16 @@ Criar e evoluir um painel web local, separado do fluxo principal do AVIPE, para:
 
 - consultar os registros da tabela `avipe_pesquisa_endereco`
 - monitorar o servico por indicadores e graficos operacionais
-- preservar a interface legada em paralelo
+- oferecer uma interface moderna e unica para Home, Pesquisa e Detalhe
 
 ## Arquitetura atual
 
-Em sexta-feira, 14 de agosto de 2026, o projeto opera assim:
+Em sabado, 15 de agosto de 2026, o projeto opera assim:
 
 - backend principal: Django
 - frontend principal: React + Vite + TypeScript + Tailwind
 - camada de graficos: Recharts
-- legado: frontend Django antigo preservado em `Legado`
+- interface ativa unica servida pelo backend Django
 
 ## Evolucao resumida
 
@@ -66,7 +66,7 @@ Nesta fase, o painel deixou de ser apenas uma tela de consulta e passou a ter:
 
 - navbar entre `Home` e `Pesquisa`
 - Home dedicada a KPIs e observabilidade
-- painel local de maquina/usuario expansivel
+- painel local de maquina e usuario expansivel
 - retirada do bloco de ultimos registros da Home
 - reorganizacao visual da interface para o padrao escuro atual
 - titulo do sistema alterado para `Watcher AVIPE`
@@ -82,6 +82,18 @@ Foi criada uma nova camada analitica em `pesquisas/analytics.py` para alimentar:
 Tambem foi criada a API:
 
 - `GET /api/observabilidade/?periodo=<recorte>`
+
+### Fase 6. Saneamento tecnico e refatoracao
+
+Nesta fase mais recente foram feitos:
+
+- limpeza de caracteres estranhos em multiplos componentes do frontend
+- reorganizacao da aba `Pesquisa`
+- separacao de componentes de tabela, filtros e detalhe
+- extracao da infraestrutura compartilhada da Home para modulos dedicados
+- extracao dos graficos da Home para arquivos proprios
+- extracao do cabecalho e resumo da Home para componente especifico
+- retirada do legado Django do fluxo ativo de rotas e configuracao
 
 ## Decisoes de arquitetura
 
@@ -117,30 +129,28 @@ Foi adicionada:
 
 - `GET /api/observabilidade/`
 
-### 4. Legado isolado
+### 4. Legado removido do fluxo ativo
 
-O frontend Django antigo continuou disponivel em:
+O frontend Django antigo deixou de participar das rotas e da configuracao ativa do sistema.
 
-- `/legado/`
+Com isso:
 
-Isso permite:
-
-- referencia historica
-- comparacao funcional
-- fallback controlado
+- a manutencao ficou concentrada em uma unica interface
+- o Django passou a servir apenas o shell React e as APIs
+- o risco de divergencia funcional entre interfaces foi reduzido
 
 ## Observabilidade e recortes de tempo
 
 ### Modos de leitura
 
-Os graficos da Home passaram a suportar:
+Os graficos da Home suportam:
 
 - `registros`: quantidade de CPFs pesquisados
 - `processos`: quantidade distinta de processos
 
 ### Camadas de status
 
-Na aba `Status por orgao`, o sistema passou a suportar:
+Na aba de processamento e juntada, o sistema suporta:
 
 - `Sobrepostos`
 - `So processados`
@@ -148,7 +158,7 @@ Na aba `Status por orgao`, o sistema passou a suportar:
 
 ### Recortes moveis
 
-Os recortes `24h`, `48h` e `72h` foram ajustados para usar janela movel real:
+Os recortes `24h`, `48h` e `72h` usam janela movel real:
 
 - ponto final = hora atual da consulta
 - ponto inicial = 24h, 48h ou 72h para tras
@@ -169,7 +179,7 @@ Para evitar ambiguidade:
 
 ### Virada de dia
 
-Os graficos de linha ate `7 dias` passaram a marcar viradas de dia quando ha mudanca real de data entre buckets consecutivos.
+Os graficos de linha ate `7 dias` marcam viradas de dia quando ha mudanca real de data entre buckets consecutivos.
 
 ## Estrutura atual
 
@@ -177,7 +187,6 @@ Os graficos de linha ate `7 dias` passaram a marcar viradas de dia quando ha mud
 avipe_painel/
 |-- docs/
 |-- frontend/
-|-- Legado/
 |-- painel_config/
 |-- pesquisas/
 |-- static/
@@ -227,7 +236,7 @@ Ficou responsavel por:
 
 - shell React na raiz e em `/home/`
 - endpoints JSON
-- entrega da nova Home e da Pesquisa
+- entrega da Home e da Pesquisa
 
 ### `frontend/src/App.tsx`
 
@@ -235,11 +244,41 @@ Concentra:
 
 - layout principal
 - estados dos filtros e modos de graficos
-- KPIs da Home
 - navegacao entre Home, Pesquisa e Detalhe
-- renderizacao dos graficos operacionais
+- ligacao entre dados e componentes principais
 
-## Validacoes realizadas em 14 de agosto de 2026
+### `frontend/src/components/HomeDashboard.tsx`
+
+Hoje atua como orquestrador da Home.
+
+### `frontend/src/components/HomeDashboardHeader.tsx`
+
+Concentra:
+
+- KPIs
+- painel local expansivel
+- navbar interna dos graficos
+- picker de periodo
+- resumo e badge do grafico ativo
+
+### `frontend/src/components/homeDashboardCharts.tsx`
+
+Concentra:
+
+- grafico de inclusoes por unidade
+- grafico de entrada x processamento
+- grafico de processamento x juntada
+- seletor de orgaos
+
+### `frontend/src/components/homeDashboardShared.tsx`
+
+Concentra:
+
+- tipos compartilhados da Home
+- constantes de periodo
+- infraestrutura visual reutilizada
+
+## Validacoes realizadas em 15 de agosto de 2026
 
 Foram validados com sucesso:
 
@@ -251,11 +290,10 @@ Foram validados com sucesso:
 - `GET /api/pesquisas/`
 - abertura da Home em `http://127.0.0.1:8000/home/`
 - abertura da Pesquisa
-- abertura do legado em `http://127.0.0.1:8000/legado/`
 
 ## Observacoes finais
 
 - o projeto esta pronto para instalacao limpa em maquina nova
 - a consulta operacional e a observabilidade coexistem na mesma interface
-- o legado continua disponivel, mas fora do caminho principal
 - a logica de banco e de credenciais segue centralizada no backend Python
+- a manutencao agora esta mais concentrada em componentes menores e mais legiveis

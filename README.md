@@ -2,17 +2,17 @@
 
 Painel web local para monitoramento operacional e consulta da base `avipebd` usada pelo AVIPE.
 
-Em 14 de agosto de 2026, o sistema opera com este stack:
+Em 15 de agosto de 2026, o sistema opera com este stack:
 
 - backend: Django
 - frontend: React + Vite + TypeScript + Tailwind
 - graficos: Recharts
-- legado preservado: interface Django antiga em rota separada
+- interface ativa unica: React sobre backend Django
 
 ## O que o sistema entrega hoje
 
 - navegacao por navbar entre `Home` e `Pesquisa`
-- Home com KPIs globais e painel expansivel da maquina/usuario local
+- Home com KPIs globais e painel expansivel da maquina e do usuario local
 - observabilidade do servico por periodo
 - leitura por `registros` ou por `processos`
 - graficos em `linhas` ou `barras`
@@ -23,7 +23,6 @@ Em 14 de agosto de 2026, o sistema opera com este stack:
 - filtros operacionais por processo, CPF, orgao, usuario, data, processado e juntado
 - consulta paginada da tabela `avipe_pesquisa_endereco`
 - detalhe completo por registro
-- frontend legado acessivel em rota separada
 
 ## Recortes de tempo da observabilidade
 
@@ -35,9 +34,9 @@ O Watcher AVIPE suporta estes recortes:
 - `72h`
 - `Semana`
 - `7 dias`
-- `Mês`
+- `Mes`
 - `30 dias`
-- `Todo período`
+- `Todo periodo`
 
 ### Regras dos recortes moveis
 
@@ -55,7 +54,6 @@ Nos graficos de linha ate `7 dias`, o sistema marca a virada de dia quando ha mu
 avipe_painel/
 |-- docs/
 |-- frontend/
-|-- Legado/
 |-- painel_config/
 |-- pesquisas/
 |-- static/
@@ -72,11 +70,10 @@ avipe_painel/
 
 ## Rotas principais
 
-- nova interface: `http://127.0.0.1:8000/`
-- nova interface alternativa: `http://127.0.0.1:8000/home/`
+- interface principal: `http://127.0.0.1:8000/`
+- interface principal alternativa: `http://127.0.0.1:8000/home/`
 - pesquisa: `http://127.0.0.1:8000/pesquisas/`
 - detalhe: `http://127.0.0.1:8000/pesquisas/detalhe/?id=<id>`
-- frontend legado: `http://127.0.0.1:8000/legado/`
 
 ## APIs disponiveis
 
@@ -233,10 +230,13 @@ Tambem e possivel usar:
 - `pesquisas/services.py`: acesso ao banco e consultas operacionais
 - `pesquisas/analytics.py`: agregacoes de observabilidade
 - `pesquisas/views.py`: shell React e endpoints JSON
-- `pesquisas/legacy_views.py`: frontend Django antigo
 - `frontend/src/App.tsx`: interface React ativa
 - `frontend/src/api.ts`: consumo das APIs
 - `frontend/src/types.ts`: contratos do frontend
+- `frontend/src/components/HomeDashboard.tsx`: orquestracao da Home
+- `frontend/src/components/HomeDashboardHeader.tsx`: cabecalho, KPIs e resumo da Home
+- `frontend/src/components/homeDashboardCharts.tsx`: graficos da Home
+- `frontend/src/components/homeDashboardShared.tsx`: infraestrutura compartilhada da Home
 - `frontend/package.json`: dependencias e scripts do frontend
 - `iniciar_avipe_painel.bat`: inicializacao rapida
 - `preparar_avipe_painel_nova_maquina.bat`: bootstrap de maquina nova
@@ -272,10 +272,6 @@ Verifique:
 cd frontend
 npm run build
 ```
-
-### Preciso abrir a interface antiga
-
-- `http://127.0.0.1:8000/legado/`
 
 ## Validacao do fluxo local
 

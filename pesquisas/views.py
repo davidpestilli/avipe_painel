@@ -130,6 +130,7 @@ def api_lista_pesquisas(request: HttpRequest) -> JsonResponse:
                     "pagina": paginacao.pagina,
                     "por_pagina": paginacao.por_pagina,
                     "total": paginacao.total,
+                    "total_processos": paginacao.total_processos,
                     "total_paginas": paginacao.total_paginas,
                     "tem_anterior": paginacao.tem_anterior,
                     "tem_proxima": paginacao.tem_proxima,
