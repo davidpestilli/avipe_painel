@@ -21,6 +21,9 @@ import {
   type MetricScope,
   type StatusLayerMode,
   getDayChangeMarkers,
+  getOrgaoProcessamentoJuntadaGap,
+  orderOrgansForHighlight,
+  orderOrgansForSelectorList,
   tooltipStyle,
 } from "./homeDashboardShared";
 
@@ -106,33 +109,65 @@ function buildStackedBarRows(data: ChartRow[], suffix: string, colorMap: Map<str
 function FluxoBarTooltip({
   active,
   payload,
+  breakdownMode,
+  metricScope,
 }: {
   active?: boolean;
   payload?: Array<{ payload?: ChartRow }>;
+  breakdownMode: FluxoBreakdownMode;
+  metricScope: MetricScope;
 }) {
   if (!active) {
     return null;
   }
 
-  const stackItems = Array.isArray(payload?.[0]?.payload?.stackItems)
-    ? (payload?.[0]?.payload?.stackItems as Array<{ name: string; value: number; color: string }>)
+  const row = payload?.[0]?.payload;
+  const stackItems = Array.isArray(row?.stackItems)
+    ? (row.stackItems as Array<{ name: string; value: number; color: string }>)
     : [];
 
   if (!stackItems.length) {
     return null;
   }
 
+  const sanamentoPorOrgao = (row?.sanamento_por_orgao ?? {}) as Record<
+    string,
+    {
+      deficit_registros?: number;
+      recuperacoes_registros?: Array<{ label: string; quantidade: number }>;
+      deficit_processos?: number;
+      recuperacoes_processos?: Array<{ label: string; quantidade: number }>;
+    }
+  >;
   const total = stackItems.reduce((sum, item) => sum + item.value, 0);
 
   return (
     <div style={tooltipStyle}>
       <p className="mb-2 text-center text-base font-semibold text-slate-100">{total}</p>
       <div className="space-y-1.5">
-        {stackItems.map((item) => (
-          <p key={`${item.name}-${item.value}`} style={{ color: item.color }} className="text-sm font-medium">
-            {item.name}: {item.value}
-          </p>
-        ))}
+        {stackItems.map((item) => {
+          let trailingLabel = "";
+          if (breakdownMode === "processamento") {
+            const sanamento = sanamentoPorOrgao[item.name];
+            const deficit =
+              metricScope === "registros" ? Number(sanamento?.deficit_registros ?? 0) : Number(sanamento?.deficit_processos ?? 0);
+            const recuperacoes =
+              metricScope === "registros" ? sanamento?.recuperacoes_registros ?? [] : sanamento?.recuperacoes_processos ?? [];
+
+            if (deficit > 0) {
+              trailingLabel =
+                ` (-${deficit})` +
+                recuperacoes.map((recuperacao) => ` (+${recuperacao.quantidade} ${recuperacao.label})`).join("");
+            }
+          }
+
+          return (
+            <p key={`${item.name}-${item.value}`} style={{ color: item.color }} className="text-sm font-medium">
+              {item.name}: {item.value}
+              {trailingLabel}
+            </p>
+          );
+        })}
       </div>
     </div>
   );
@@ -268,7 +303,7 @@ export function FluxoTimelineChart({
             {...xAxisProps}
           />
           <YAxis stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
-          <Tooltip content={<FluxoBarTooltip />} labelFormatter={formatTooltipLabel} />
+          <Tooltip content={<FluxoBarTooltip breakdownMode={breakdownMode} metricScope={metricScope} />} labelFormatter={formatTooltipLabel} />
           {dayChangeMarkers.map((bucket) => (
             <ReferenceLine key={`day-${bucket}`} x={bucket} stroke="#6d5efc" strokeDasharray="5 5" strokeOpacity={0.9} />
           ))}
@@ -337,18 +372,23 @@ export function OrganSelector({
           {
             processados: Number(item[processadosKey] ?? 0),
             juntados: Number(item[juntadosKey] ?? 0),
+            gap: getOrgaoProcessamentoJuntadaGap(item, metricScope),
           },
         ]),
       ),
-    [juntadosKey, processadosKey, rankedOrgans],
+    [juntadosKey, processadosKey, rankedOrgans, metricScope],
+  );
+  const orderedSelectorOrgans = useMemo(
+    () => orderOrgansForSelectorList(rankedOrgans, metricScope),
+    [metricScope, rankedOrgans],
   );
   const orderedSelectedOrgans = useMemo(
-    () => rankedOrgansByName.filter((orgao) => selectedOrgans.includes(orgao)),
-    [rankedOrgansByName, selectedOrgans],
+    () => orderOrgansForHighlight(selectedOrgans, rankedOrgans, metricScope),
+    [metricScope, rankedOrgans, selectedOrgans],
   );
   const orderedDraftOrgans = useMemo(
-    () => rankedOrgansByName.filter((orgao) => draftSelectedOrgans.includes(orgao)),
-    [draftSelectedOrgans, rankedOrgansByName],
+    () => orderOrgansForHighlight(draftSelectedOrgans, rankedOrgans, metricScope),
+    [draftSelectedOrgans, metricScope, rankedOrgans],
   );
 
   useEffect(() => {
@@ -398,6 +438,11 @@ export function OrganSelector({
     setIsOpen(false);
   }
 
+  const highlightedChipClass =
+    "inline-flex items-center gap-2 rounded-full border border-cyan-300/70 bg-[linear-gradient(135deg,rgba(34,211,238,0.28),rgba(59,130,246,0.18))] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_0_1px_rgba(103,232,249,0.18),0_10px_30px_rgba(34,211,238,0.12)] transition";
+  const deficitChipClass =
+    "inline-flex items-center gap-2 rounded-full border border-rose-400/70 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(225,29,72,0.18))] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_0_1px_rgba(251,113,133,0.18),0_10px_30px_rgba(244,63,94,0.12)] transition";
+
   const itemColumnsClass = layerMode === "both" ? "grid-cols-[auto_minmax(0,1fr)_auto_auto]" : "grid-cols-[auto_minmax(0,1fr)_auto]";
 
   return (
@@ -406,18 +451,27 @@ export function OrganSelector({
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Órgãos destacados</p>
       </div>
       <div className="flex flex-wrap items-start gap-3">
-        {orderedSelectedOrgans.map((orgao) => (
+        {orderedSelectedOrgans.map((orgao) => {
+          const hasGap = (orgaoStats.get(orgao)?.gap ?? 0) > 0;
+          return (
           <button
             key={orgao}
-            className="inline-flex items-center gap-2 rounded-full border border-cyan-300/70 bg-[linear-gradient(135deg,rgba(34,211,238,0.28),rgba(59,130,246,0.18))] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_0_1px_rgba(103,232,249,0.18),0_10px_30px_rgba(34,211,238,0.12)] transition"
+            className={hasGap ? deficitChipClass : highlightedChipClass}
             type="button"
             aria-pressed
             onClick={() => toggleSelectedChip(orgao)}
           >
-            <span className="h-2.5 w-2.5 rounded-full bg-cyan-200 shadow-[0_0_12px_rgba(165,243,252,0.95)]" />
+            <span
+              className={
+                hasGap
+                  ? "h-2.5 w-2.5 rounded-full bg-rose-300 shadow-[0_0_12px_rgba(251,113,133,0.95)]"
+                  : "h-2.5 w-2.5 rounded-full bg-cyan-200 shadow-[0_0_12px_rgba(165,243,252,0.95)]"
+              }
+            />
             {orgao}
           </button>
-        ))}
+          );
+        })}
         <div className="relative">
           <button
             className="inline-flex min-w-[220px] items-center justify-between gap-3 rounded-full border border-slate-700/90 bg-slate-950/35 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-400/35 hover:bg-slate-950/55 hover:text-white"
@@ -439,13 +493,16 @@ export function OrganSelector({
                 <span />
               </div>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                {rankedOrgansByName.map((orgao) => {
+                {orderedSelectorOrgans.map((orgao) => {
                   const checked = draftSelectedOrgans.includes(orgao);
-                  const stats = orgaoStats.get(orgao) ?? { processados: 0, juntados: 0 };
+                  const stats = orgaoStats.get(orgao) ?? { processados: 0, juntados: 0, gap: 0 };
+                  const hasGap = stats.gap > 0;
                   return (
                     <label
                       key={orgao}
-                      className={`grid cursor-pointer items-center gap-3 rounded-xl border border-slate-800/80 bg-slate-900/55 px-3 py-2 text-xs text-slate-200 transition hover:border-cyan-400/25 hover:bg-slate-900/80 ${itemColumnsClass}`}
+                      className={`grid cursor-pointer items-center gap-3 rounded-xl border bg-slate-900/55 px-3 py-2 text-xs text-slate-200 transition hover:bg-slate-900/80 ${itemColumnsClass} ${
+                        hasGap ? "border-rose-400/35 hover:border-rose-400/55" : "border-slate-800/80 hover:border-cyan-400/25"
+                      }`}
                     >
                       <input
                         checked={checked}

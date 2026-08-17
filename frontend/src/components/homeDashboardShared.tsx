@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from "react";
 import { ResponsiveContainer } from "recharts";
+import type { ObservabilidadeResponse, ObservabilidadeTotalPorOrgao } from "../types";
 
 export type ChartMode = "line" | "bar";
 export type MetricScope = "registros" | "processos";
@@ -26,6 +27,104 @@ export const HOME_TABS = [
 ] satisfies Array<{ id: HomeChartTab; label: string }>;
 
 export const SERIES_COLORS = ["#5b8cff", "#18c29c", "#f59e0b", "#ef5da8", "#8b5cf6", "#22d3ee", "#f97316", "#94a3b8", "#fb7185", "#2dd4bf"];
+
+function getOrgaoProcessamentoJuntadaCounts(item: ObservabilidadeTotalPorOrgao, metricScope: MetricScope) {
+  const processadosKey = metricScope === "registros" ? "processados_registros" : "processados_processos";
+  const juntadosKey = metricScope === "registros" ? "juntados_registros" : "juntados_processos";
+  const processados = Number(item[processadosKey] ?? 0);
+  const juntados = Number(item[juntadosKey] ?? 0);
+
+  return {
+    processados: Number.isFinite(processados) ? processados : 0,
+    juntados: Number.isFinite(juntados) ? juntados : 0,
+  };
+}
+
+export function getOrgaoProcessamentoJuntadaGap(item: ObservabilidadeTotalPorOrgao, metricScope: MetricScope) {
+  const { processados, juntados } = getOrgaoProcessamentoJuntadaCounts(item, metricScope);
+  if (processados === juntados) {
+    return 0;
+  }
+  return Math.abs(processados - juntados);
+}
+
+function getOrgaoActivity(item: ObservabilidadeTotalPorOrgao, metricScope: MetricScope) {
+  const { processados, juntados } = getOrgaoProcessamentoJuntadaCounts(item, metricScope);
+  return processados + juntados;
+}
+
+function compareOrgansByGapThenName(
+  left: ObservabilidadeTotalPorOrgao,
+  right: ObservabilidadeTotalPorOrgao,
+  metricScope: MetricScope,
+) {
+  const gapDiff = getOrgaoProcessamentoJuntadaGap(right, metricScope) - getOrgaoProcessamentoJuntadaGap(left, metricScope);
+  if (gapDiff !== 0) {
+    return gapDiff;
+  }
+  return left.orgao.localeCompare(right.orgao);
+}
+
+export function computeHighlightedOrgans(payload: ObservabilidadeResponse | null, metricScope: MetricScope): string[] {
+  if (!payload) {
+    return [];
+  }
+
+  const totais = payload.status_por_orgao?.totais_por_orgao ?? [];
+  const fallbackNames = payload.orgaos_disponiveis ?? [];
+
+  if (!totais.length) {
+    return fallbackNames.slice(0, 3);
+  }
+
+  const withGap = totais
+    .filter((item) => getOrgaoProcessamentoJuntadaGap(item, metricScope) > 0)
+    .sort((left, right) => compareOrgansByGapThenName(left, right, metricScope));
+  const withoutGap = totais
+    .filter((item) => getOrgaoProcessamentoJuntadaGap(item, metricScope) === 0)
+    .sort((left, right) => getOrgaoActivity(right, metricScope) - getOrgaoActivity(left, metricScope) || left.orgao.localeCompare(right.orgao));
+
+  const deficitOrgans = withGap.map((item) => item.orgao);
+
+  if (deficitOrgans.length >= 3) {
+    return deficitOrgans;
+  }
+
+  const fillCount = Math.max(0, 3 - deficitOrgans.length);
+  const fillOrgans = withoutGap
+    .filter((item) => !deficitOrgans.includes(item.orgao))
+    .slice(0, fillCount)
+    .map((item) => item.orgao);
+
+  return [...deficitOrgans, ...fillOrgans];
+}
+
+export function orderOrgansForHighlight(
+  organs: string[],
+  rankedOrgans: ObservabilidadeTotalPorOrgao[],
+  metricScope: MetricScope,
+): string[] {
+  const statsByName = new Map(rankedOrgans.map((item) => [item.orgao, item]));
+  const rankedOrder = rankedOrgans.map((item) => item.orgao);
+  const withGap = organs
+    .filter((orgao) => getOrgaoProcessamentoJuntadaGap(statsByName.get(orgao) ?? { orgao }, metricScope) > 0)
+    .sort((left, right) =>
+      compareOrgansByGapThenName(statsByName.get(left) ?? { orgao: left }, statsByName.get(right) ?? { orgao: right }, metricScope),
+    );
+  const withoutGap = organs
+    .filter((orgao) => getOrgaoProcessamentoJuntadaGap(statsByName.get(orgao) ?? { orgao }, metricScope) === 0)
+    .sort((left, right) => rankedOrder.indexOf(left) - rankedOrder.indexOf(right));
+
+  return [...withGap, ...withoutGap];
+}
+
+export function orderOrgansForSelectorList(rankedOrgans: ObservabilidadeTotalPorOrgao[], metricScope: MetricScope): string[] {
+  return orderOrgansForHighlight(
+    rankedOrgans.map((item) => item.orgao),
+    rankedOrgans,
+    metricScope,
+  );
+}
 
 export function PeriodPicker({ value, onChange, compact = false }: { value: string; onChange: (value: string) => void; compact?: boolean }) {
   return (

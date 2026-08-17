@@ -17,14 +17,9 @@ export function CompactHeader({
         <div className="pointer-events-none absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_top_left,rgba(76,199,255,0.12),transparent_34%),radial-gradient(circle_at_70%_20%,rgba(109,94,252,0.12),transparent_30%)]" />
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <div className="mb-1 flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.32em] text-cyan-100">
-                Watcher
-              </span>
-              <div className="bg-[linear-gradient(135deg,#ffffff_0%,#d6e7ff_48%,#86d7ff_100%)] bg-clip-text text-3xl font-semibold tracking-[0.01em] text-transparent sm:text-[2.15rem]">
-                AVIPE
-              </div>
-            </div>
+            <h1 className="title-shimmer mb-1 text-3xl font-semibold uppercase tracking-[0.08em] sm:text-[2.15rem]">
+              WATCHER AVIPE
+            </h1>
             <p className="mt-1 max-w-2xl text-sm text-slate-300">
               Monitoramento operacional do fluxo de pesquisas e do processamento.
             </p>

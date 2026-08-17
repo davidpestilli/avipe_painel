@@ -2,7 +2,7 @@
 
 Painel web local para monitoramento operacional e consulta da base `avipebd` usada pelo AVIPE.
 
-Em 15 de agosto de 2026, o sistema opera com este stack:
+Em 17 de agosto de 2026, o sistema opera com este stack:
 
 - backend: Django
 - frontend: React + Vite + TypeScript + Tailwind
@@ -20,6 +20,9 @@ Em 15 de agosto de 2026, o sistema opera com este stack:
   - envios ao localizador por orgao
   - inclusao no localizador x processamento
   - processados e juntados por orgao
+- cabecalho unificado `WATCHER AVIPE` com efeito visual de brilho animado
+- destaque operacional de orgaos com diferenca entre processado e juntado
+- tooltip de processamento com deficit e sanamento registro a registro por data
 - filtros operacionais por processo, CPF, orgao, usuario, data, processado e juntado
 - consulta paginada da tabela `avipe_pesquisa_endereco`
 - detalhe completo por registro
@@ -47,6 +50,33 @@ Os recortes `24h`, `48h` e `72h` sao ancorados no momento atual da consulta.
 - `72h`: ponto final = hora atual; ponto inicial = 72 horas corridas para tras; buckets de 18 em 18 horas
 
 Nos graficos de linha ate `7 dias`, o sistema marca a virada de dia quando ha mudanca real de data entre buckets consecutivos.
+
+## Destaques da observabilidade
+
+### Grafico Entrada x Processamento
+
+Na visualizacao `Barras` + `Processamento`, o tooltip de cada barra mostra, por orgao:
+
+- valor processado no bucket
+- `(-x)` quando ha registros que entraram naquele bucket e nao foram processados no mesmo bucket
+- `(+n data)` para cada data posterior em que parte desse deficit foi sanada
+
+Exemplo:
+
+`SANTANA01CIV: 360 (-45) (+30 29/07) (+10 30/07)`
+
+Esse calculo e feito **registro a registro** no backend (`pesquisas/analytics.py`) e enviado em `sanamento_por_orgao` dentro de cada ponto da `evolucao`.
+
+### Grafico Processamento x Juntada por Unidade
+
+Na visualizacao em linhas, orgaos com diferenca entre processado e juntado recebem tratamento especial:
+
+- entram automaticamente na grade `Orgaos Destacados`
+- aparecem com chip vermelho
+- sobem para o topo do seletor `Selecionar orgaos`, ordenados pela maior diferenca
+- regra de exibicao na grade:
+  - todos os orgaos com diferenca sao exibidos, sem limite
+  - quando houver 0, 1 ou 2 orgaos com diferenca, a grade completa ate 3 unidades com orgaos sem diferenca, priorizando maior movimentacao
 
 ## Estrutura atual
 
@@ -233,6 +263,7 @@ Tambem e possivel usar:
 - `frontend/src/App.tsx`: interface React ativa
 - `frontend/src/api.ts`: consumo das APIs
 - `frontend/src/types.ts`: contratos do frontend
+- `frontend/src/components/AppShell.tsx`: cabecalho compacto e overlay de carregamento
 - `frontend/src/components/HomeDashboard.tsx`: orquestracao da Home
 - `frontend/src/components/HomeDashboardHeader.tsx`: cabecalho, KPIs e resumo da Home
 - `frontend/src/components/homeDashboardCharts.tsx`: graficos da Home

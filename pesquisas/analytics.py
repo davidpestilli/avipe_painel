@@ -180,6 +180,12 @@ def _registrar_divergencia(
         item["processos_set"].add(processo)
 
 
+def _bucket_de_valor(valor: datetime, periodo: PeriodWindow) -> datetime:
+    if periodo.kind == "rolling":
+        return _bucket_rolling_fim(valor, periodo)
+    return _bucket_inicio(valor, periodo.bucket_hours)
+
+
 def _serializar_divergencias(mapa: dict[tuple[str, str], dict[str, Any]]) -> dict[str, Any]:
     itens = sorted(
         (
@@ -198,6 +204,124 @@ def _serializar_divergencias(mapa: dict[tuple[str, str], dict[str, Any]]) -> dic
         "processos": sum(item["processos"] for item in itens),
         "itens": itens,
     }
+
+
+def _serializar_recuperacoes(
+    recuperacoes: dict[str, int] | dict[str, set[str]],
+    periodo: PeriodWindow,
+) -> list[dict[str, Any]]:
+    itens: list[tuple[datetime, dict[str, Any]]] = []
+    for bucket_key, valor in recuperacoes.items():
+        bucket = datetime.fromisoformat(bucket_key)
+        quantidade = len(valor) if isinstance(valor, set) else int(valor)
+        if quantidade <= 0:
+            continue
+        itens.append(
+            (
+                bucket,
+                {
+                    "bucket": bucket_key,
+                    "label": _formatar_bucket(bucket, periodo.bucket_hours),
+                    "quantidade": quantidade,
+                },
+            )
+        )
+    itens.sort(key=lambda item: item[0])
+    return [item[1] for item in itens]
+
+
+def _calcular_sanamento_fluxo(linhas: list[dict[str, Any]], periodo: PeriodWindow) -> dict[str, dict[str, dict[str, Any]]]:
+    sanamento_registros: dict[str, dict[str, dict[str, int]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    pendente_registros: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    sanamento_processos: dict[str, dict[str, dict[str, set[str]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(set))
+    )
+    mesmo_dia_processos: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    processo_estado: dict[tuple[str, str, str], str] = {}
+
+    for linha in linhas:
+        processo = (linha.get("nuprocesso") or "").strip() or None
+        orgao = (linha.get("sig_orgao") or "Sem orgao").strip() or "Sem orgao"
+        inclusao_localizador = _parse_data_localizador(linha.get("data_inclusao_localizador"))
+        data_processamento = _normalizar_data_utc(linha.get("data_processamento"))
+        processado = int(linha.get("processado") or 0)
+
+        if not _esta_no_periodo(inclusao_localizador, periodo):
+            continue
+
+        bucket_inclusao = _bucket_de_valor(inclusao_localizador, periodo)
+        bucket_inclusao_key = bucket_inclusao.isoformat()
+
+        if processado and data_processamento is not None:
+            bucket_processamento = _bucket_de_valor(data_processamento, periodo)
+            if bucket_processamento == bucket_inclusao:
+                if processo:
+                    processo_estado[(bucket_inclusao_key, orgao, processo)] = "same_day"
+                    mesmo_dia_processos[bucket_inclusao_key][orgao].add(processo)
+            elif bucket_processamento > bucket_inclusao:
+                bucket_processamento_key = bucket_processamento.isoformat()
+                sanamento_registros[bucket_inclusao_key][orgao][bucket_processamento_key] += 1
+                if processo:
+                    chave_processo = (bucket_inclusao_key, orgao, processo)
+                    if processo_estado.get(chave_processo) != "same_day":
+                        processo_estado[chave_processo] = bucket_processamento_key
+                        sanamento_processos[bucket_inclusao_key][orgao][bucket_processamento_key].add(processo)
+            else:
+                pendente_registros[bucket_inclusao_key][orgao] += 1
+                if processo and (bucket_inclusao_key, orgao, processo) not in processo_estado:
+                    processo_estado[(bucket_inclusao_key, orgao, processo)] = "pending"
+            continue
+
+        pendente_registros[bucket_inclusao_key][orgao] += 1
+        if processo and (bucket_inclusao_key, orgao, processo) not in processo_estado:
+            processo_estado[(bucket_inclusao_key, orgao, processo)] = "pending"
+
+    sanamento_por_bucket: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
+    buckets_entrada = (
+        set(sanamento_registros)
+        | set(pendente_registros)
+        | set(sanamento_processos)
+        | set(mesmo_dia_processos)
+    )
+
+    for bucket_inclusao_key in buckets_entrada:
+        orgaos = (
+            set(sanamento_registros.get(bucket_inclusao_key, {}))
+            | set(pendente_registros.get(bucket_inclusao_key, {}))
+            | set(sanamento_processos.get(bucket_inclusao_key, {}))
+            | set(mesmo_dia_processos.get(bucket_inclusao_key, {}))
+        )
+
+        for orgao in orgaos:
+            recuperacoes_registros = _serializar_recuperacoes(
+                sanamento_registros.get(bucket_inclusao_key, {}).get(orgao, {}),
+                periodo,
+            )
+            pendente_reg = pendente_registros[bucket_inclusao_key].get(orgao, 0)
+            deficit_registros = sum(item["quantidade"] for item in recuperacoes_registros) + pendente_reg
+
+            recuperacoes_processos = _serializar_recuperacoes(
+                sanamento_processos.get(bucket_inclusao_key, {}).get(orgao, {}),
+                periodo,
+            )
+            pendente_proc = sum(
+                1
+                for (bucket_key, orgao_key, _), estado in processo_estado.items()
+                if bucket_key == bucket_inclusao_key and orgao_key == orgao and estado == "pending"
+            )
+            deficit_processos = sum(item["quantidade"] for item in recuperacoes_processos) + pendente_proc
+
+            if deficit_registros <= 0 and deficit_processos <= 0:
+                continue
+
+            sanamento_por_bucket[bucket_inclusao_key][orgao] = {
+                "deficit_registros": deficit_registros,
+                "recuperacoes_registros": recuperacoes_registros,
+                "deficit_processos": deficit_processos,
+                "recuperacoes_processos": recuperacoes_processos,
+            }
+
+    return sanamento_por_bucket
 
 
 def buscar_observabilidade(period_key: str) -> dict[str, Any]:
@@ -339,6 +463,8 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
             elif processado:
                 _registrar_divergencia(divergencias_juntados_periodo, orgao, data_processamento, processo)
 
+    sanamento_por_bucket = _calcular_sanamento_fluxo(linhas, periodo)
+
     orgaos_ordenados = _ordenar_orgaos(
         inclusoes_registros_por_orgao
         or {orgao: dados["processados"] for orgao, dados in processados_por_orgao.items()}
@@ -385,6 +511,7 @@ def buscar_observabilidade(period_key: str) -> dict[str, Any]:
         for orgao, dados in throughput_timeline_processos_por_orgao.get(bucket, {}).items():
             registro[f"{orgao}__inclusoes_processos"] = len(dados["inclusoes"])
             registro[f"{orgao}__processamentos_processos"] = len(dados["processamentos"])
+        registro["sanamento_por_orgao"] = sanamento_por_bucket.get(bucket.isoformat(), {})
         timeline_throughput.append(registro)
 
     timeline_status = []

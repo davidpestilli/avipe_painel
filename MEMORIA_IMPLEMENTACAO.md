@@ -10,7 +10,7 @@ Criar e evoluir um painel web local, separado do fluxo principal do AVIPE, para:
 
 ## Arquitetura atual
 
-Em sabado, 15 de agosto de 2026, o projeto opera assim:
+Em 17 de agosto de 2026, o projeto opera assim:
 
 - backend principal: Django
 - frontend principal: React + Vite + TypeScript + Tailwind
@@ -94,6 +94,20 @@ Nesta fase mais recente foram feitos:
 - extracao dos graficos da Home para arquivos proprios
 - extracao do cabecalho e resumo da Home para componente especifico
 - retirada do legado Django do fluxo ativo de rotas e configuracao
+
+### Fase 7. Refinamentos operacionais da observabilidade e da interface
+
+Nesta fase foram entregues:
+
+- cabecalho unificado `WATCHER AVIPE` com gradiente animado no shell React
+- tooltip do grafico `Entrada x Processamento` na visualizacao `Barras` + `Processamento` com:
+  - deficit `(-x)` por orgao e bucket
+  - sanamento `(+n data)` calculado registro a registro no backend
+  - campo `sanamento_por_orgao` em cada ponto da `evolucao`
+- destaque automatico de orgaos com diferenca entre processado e juntado no grafico `Processamento x Juntada por Unidade`:
+  - chips vermelhos na grade `Orgaos Destacados`
+  - prioridade no seletor `Selecionar orgaos`
+  - selecao automatica conforme regra de exibicao da grade
 
 ## Decisoes de arquitetura
 
@@ -181,6 +195,31 @@ Para evitar ambiguidade:
 
 Os graficos de linha ate `7 dias` marcam viradas de dia quando ha mudanca real de data entre buckets consecutivos.
 
+### Sanamento de deficit no fluxo entrada x processamento
+
+Para cada bucket de entrada e orgao, o backend classifica cada registro com inclusao no periodo:
+
+- processado no mesmo bucket da entrada: nao compoe deficit
+- processado em bucket posterior: compoe recuperacao `(+n data)`
+- nao processado: permanece no deficit residual `(-x)`
+
+Para leitura por processos, a mesma logica usa `nuprocesso` como chave distinta.
+
+O frontend consome `sanamento_por_orgao` no tooltip do grafico de barras em modo `Processamento`.
+
+### Destaque de orgaos com diferenca processado x juntado
+
+No grafico `Processamento x Juntada por Unidade`, orgaos com `processado != juntado` recebem:
+
+- inclusao automatica na grade de orgaos destacados
+- chip vermelho
+- ordenacao por maior diferenca absoluta
+- regra de preenchimento da grade:
+  - exibir todos os orgaos com diferenca
+  - completar ate 3 unidades visiveis com orgaos sem diferenca quando houver 0, 1 ou 2 orgaos com diferenca
+
+A logica compartilhada vive em `frontend/src/components/homeDashboardShared.tsx` (`computeHighlightedOrgans`, `getOrgaoProcessamentoJuntadaGap`, `orderOrgansForHighlight`).
+
 ## Estrutura atual
 
 ```text
@@ -229,6 +268,25 @@ Concentra:
 - contagem por registros
 - contagem por processos distintos
 - consolidacao de processados e juntados
+- sanamento registro a registro de deficit entre entrada e processamento
+
+### `frontend/src/components/AppShell.tsx`
+
+Concentra:
+
+- cabecalho compacto sticky
+- titulo unificado `WATCHER AVIPE`
+- overlay de carregamento
+
+### `frontend/src/components/homeDashboardShared.tsx`
+
+Concentra:
+
+- tipos compartilhados da Home
+- constantes de periodo
+- infraestrutura visual reutilizada
+- regras de destaque de orgaos com diferenca processado x juntado
+- helpers de sanamento e ordenacao de orgaos
 
 ### `pesquisas/views.py`
 
@@ -270,15 +328,7 @@ Concentra:
 - grafico de processamento x juntada
 - seletor de orgaos
 
-### `frontend/src/components/homeDashboardShared.tsx`
-
-Concentra:
-
-- tipos compartilhados da Home
-- constantes de periodo
-- infraestrutura visual reutilizada
-
-## Validacoes realizadas em 15 de agosto de 2026
+## Validacoes realizadas em 17 de agosto de 2026
 
 Foram validados com sucesso:
 
@@ -290,6 +340,8 @@ Foram validados com sucesso:
 - `GET /api/pesquisas/`
 - abertura da Home em `http://127.0.0.1:8000/home/`
 - abertura da Pesquisa
+- tooltip de sanamento no grafico Entrada x Processamento
+- destaque de orgaos com diferenca processado x juntado
 
 ## Observacoes finais
 

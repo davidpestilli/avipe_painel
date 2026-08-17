@@ -10,6 +10,7 @@ import {
   type MetricScope,
   type StatusLayerMode,
 } from "./components/HomeDashboard";
+import { computeHighlightedOrgans } from "./components/homeDashboardShared";
 import { SearchPage } from "./components/SearchPage";
 import { PesquisaViewMode } from "./components/SearchTable";
 import type { DashboardData, DetalheResponse, ListaResponse, ObservabilidadeResponse } from "./types";
@@ -57,16 +58,6 @@ const EMPTY_FILTERS: FilterState = {
   juntado: "",
 };
 
-function getDefaultStatusOrgans(payload: ObservabilidadeResponse | null): string[] {
-  if (!payload) {
-    return [];
-  }
-
-  const ranked = payload.status_por_orgao?.totais_por_orgao?.map((item) => item.orgao).filter(Boolean) ?? [];
-  const fallback = payload.orgaos_disponiveis ?? [];
-  return (ranked.length > 0 ? ranked : fallback).slice(0, 3);
-}
-
 function App() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [observabilidade, setObservabilidade] = useState<ObservabilidadeResponse | null>(null);
@@ -110,10 +101,11 @@ function App() {
   }, [periodo, currentView]);
 
   useEffect(() => {
-    if (currentView !== "home" || activeHomeTab !== "status") {
-      setSelectedOrgans(getDefaultStatusOrgans(observabilidade));
+    if (currentView !== "home" || !observabilidade) {
+      return;
     }
-  }, [observabilidade, activeHomeTab, currentView]);
+    setSelectedOrgans(computeHighlightedOrgans(observabilidade, metricScope));
+  }, [observabilidade, metricScope, currentView]);
 
   async function bootstrap() {
     setLoading(true);

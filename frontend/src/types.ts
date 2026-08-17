@@ -81,6 +81,21 @@ export interface ObservabilidadeResumo {
   juntados_processos?: number;
 }
 
+export interface ObservabilidadeRecuperacaoFluxo {
+  bucket: string;
+  label: string;
+  quantidade: number;
+}
+
+export interface ObservabilidadeSanamentoOrgao {
+  deficit_registros: number;
+  recuperacoes_registros: ObservabilidadeRecuperacaoFluxo[];
+  deficit_processos: number;
+  recuperacoes_processos: ObservabilidadeRecuperacaoFluxo[];
+}
+
+export type ObservabilidadeSanamentoPorOrgao = Record<string, ObservabilidadeSanamentoOrgao>;
+
 export interface ObservabilidadeTotalPorOrgao {
   orgao: string;
   total?: number;
