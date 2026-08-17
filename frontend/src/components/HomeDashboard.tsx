@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ObservabilidadeResponse } from "../types";
+import type { ObservabilidadeResponse, ObservabilidadeTotalPorOrgao } from "../types";
 import { HomeDashboardHeader } from "./HomeDashboardHeader";
 import {
   type FluxoBreakdownMode,
@@ -9,14 +9,7 @@ import {
   type StatusLayerMode,
   type ChartMode,
 } from "./homeDashboardShared";
-import {
-  FluxoTimelineChart,
-  OrganSelector,
-  OrgTimelineChart,
-  OrgTotalsChart,
-  StatusTimelineChart,
-  StatusTotalsChart,
-} from "./homeDashboardCharts";
+import { FluxoTimelineChart, OrganSelector, StatusTimelineChart, StatusTotalsChart } from "./homeDashboardCharts";
 
 export type { ChartMode, FluxoBreakdownMode, HomeChartTab, MetricScope, StatusLayerMode } from "./homeDashboardShared";
 
@@ -27,8 +20,6 @@ type HomeViewProps = {
   onPeriodoChange: (value: string) => void;
   activeHomeTab: HomeChartTab;
   onActiveHomeTabChange: (value: HomeChartTab) => void;
-  orgaoChartMode: ChartMode;
-  onOrgaoChartModeChange: (value: ChartMode) => void;
   fluxoChartMode: ChartMode;
   onFluxoChartModeChange: (value: ChartMode) => void;
   statusChartMode: ChartMode;
@@ -50,8 +41,6 @@ export function HomeView({
   onPeriodoChange,
   activeHomeTab,
   onActiveHomeTabChange,
-  orgaoChartMode,
-  onOrgaoChartModeChange,
   fluxoChartMode,
   onFluxoChartModeChange,
   statusChartMode,
@@ -65,6 +54,24 @@ export function HomeView({
   selectedOrgans,
   onSelectedOrgansChange,
 }: HomeViewProps) {
+  const statusTotals = observabilidade?.status_por_orgao.totais_por_orgao ?? [];
+
+  const rankedStatusOrgans = useMemo(() => {
+    const processadosKey = metricScope === "registros" ? "processados_registros" : "processados_processos";
+    const juntadosKey = metricScope === "registros" ? "juntados_registros" : "juntados_processos";
+
+    return [...statusTotals].sort((left, right) => {
+      const leftProcessados = Number(left[processadosKey as keyof ObservabilidadeTotalPorOrgao] ?? 0);
+      const rightProcessados = Number(right[processadosKey as keyof ObservabilidadeTotalPorOrgao] ?? 0);
+      const leftJuntados = Number(left[juntadosKey as keyof ObservabilidadeTotalPorOrgao] ?? 0);
+      const rightJuntados = Number(right[juntadosKey as keyof ObservabilidadeTotalPorOrgao] ?? 0);
+      const leftMetric = statusLayerMode === "processados" ? leftProcessados : statusLayerMode === "juntados" ? leftJuntados : leftProcessados + leftJuntados;
+      const rightMetric = statusLayerMode === "processados" ? rightProcessados : statusLayerMode === "juntados" ? rightJuntados : rightProcessados + rightJuntados;
+
+      return rightMetric - leftMetric || left.orgao.localeCompare(right.orgao);
+    });
+  }, [metricScope, statusLayerMode, statusTotals]);
+
   const statusSeries = useMemo(
     () =>
       selectedOrgans.map((orgao, index) => ({
@@ -74,13 +81,9 @@ export function HomeView({
     [selectedOrgans],
   );
 
-  const activeChartMode = activeHomeTab === "localizador" ? orgaoChartMode : activeHomeTab === "fluxo" ? fluxoChartMode : statusChartMode;
+  const activeChartMode = activeHomeTab === "fluxo" ? fluxoChartMode : statusChartMode;
 
   const setActiveChartMode = (value: ChartMode) => {
-    if (activeHomeTab === "localizador") {
-      onOrgaoChartModeChange(value);
-      return;
-    }
     if (activeHomeTab === "fluxo") {
       onFluxoChartModeChange(value);
       return;
@@ -88,18 +91,8 @@ export function HomeView({
     onStatusChartModeChange(value);
   };
 
-  const chartContent =
-    !observabilidade ? null : activeHomeTab === "localizador" ? (
-      activeChartMode === "bar" ? (
-        <OrgTotalsChart data={observabilidade.entrada_localizador_por_orgao.totais_por_orgao ?? []} metricScope={metricScope} />
-      ) : (
-        <OrgTimelineChart
-          data={observabilidade.entrada_localizador_por_orgao.evolucao}
-          metricScope={metricScope}
-          periodKey={observabilidade.periodo.selecionado}
-        />
-      )
-    ) : activeHomeTab === "fluxo" ? (
+  const chartChildren =
+    !observabilidade ? null : activeHomeTab === "fluxo" ? (
       <FluxoTimelineChart
         data={observabilidade.inclusao_vs_processamento.evolucao ?? []}
         mode={activeChartMode}
@@ -111,13 +104,15 @@ export function HomeView({
       <div className="space-y-4">
         {activeChartMode === "line" ? (
           <OrganSelector
-            rankedOrgans={(observabilidade.status_por_orgao.totais_por_orgao ?? []).map((item) => item.orgao)}
+            rankedOrgans={rankedStatusOrgans}
             selectedOrgans={selectedOrgans}
             onChange={onSelectedOrgansChange}
+            layerMode={statusLayerMode}
+            metricScope={metricScope}
           />
         ) : null}
         {activeChartMode === "bar" ? (
-          <StatusTotalsChart data={observabilidade.status_por_orgao.totais_por_orgao ?? []} layerMode={statusLayerMode} metricScope={metricScope} />
+          <StatusTotalsChart data={statusTotals} layerMode={statusLayerMode} metricScope={metricScope} />
         ) : (
           <StatusTimelineChart
             data={observabilidade.status_por_orgao.evolucao ?? []}
@@ -147,7 +142,7 @@ export function HomeView({
         onStatusLayerModeChange={onStatusLayerModeChange}
         fluxoBreakdownMode={fluxoBreakdownMode}
         onFluxoBreakdownModeChange={onFluxoBreakdownModeChange}
-        chartChildren={chartContent}
+        chartChildren={chartChildren}
       />
     </div>
   );

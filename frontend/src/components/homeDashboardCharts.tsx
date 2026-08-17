@@ -3,7 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
+  Cell,
   Line,
   LineChart,
   ReferenceLine,
@@ -14,88 +14,214 @@ import {
 import type { ObservabilidadeTotalPorOrgao } from "../types";
 import {
   ChartContainer,
-  FilteredChartTooltip,
   SERIES_COLORS,
+  type ChartMode,
+  type ChartRow,
   type FluxoBreakdownMode,
   type MetricScope,
   type StatusLayerMode,
-  type ChartMode,
-  type ChartRow,
   getDayChangeMarkers,
   tooltipStyle,
 } from "./homeDashboardShared";
 
-export function OrgTotalsChart({
-  data,
-  metricScope,
+function getTimelineXAxisProps(periodKey: string) {
+  if (periodKey === "48h" || periodKey === "72h") {
+    return {
+      interval: 0 as const,
+      minTickGap: 0,
+      tickMargin: 8,
+    };
+  }
+
+  return {
+    tickMargin: 8,
+  };
+}
+
+function formatTooltipLabel(label: string | number, payload?: Array<{ payload?: ChartRow }>) {
+  const chartLabel = payload?.[0]?.payload?.label;
+  return typeof chartLabel === "string" ? chartLabel : label;
+}
+
+function buildFluxoStackOrder(data: ChartRow[], suffix: string) {
+  const totals = new Map<string, number>();
+
+  for (const item of data) {
+    for (const [key, rawValue] of Object.entries(item)) {
+      if (!key.endsWith(suffix)) {
+        continue;
+      }
+
+      const value = typeof rawValue === "number" ? rawValue : Number(rawValue ?? 0);
+      if (!Number.isFinite(value) || value <= 0) {
+        continue;
+      }
+
+      const orgao = key.slice(0, -suffix.length);
+      totals.set(orgao, (totals.get(orgao) ?? 0) + value);
+    }
+  }
+
+  return [...totals.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0])).map(([orgao]) => orgao);
+}
+
+function buildFluxoColorMap(orgaos: string[]) {
+  return new Map(orgaos.map((orgao, index) => [orgao, SERIES_COLORS[index % SERIES_COLORS.length]]));
+}
+
+function buildStackedBarRows(data: ChartRow[], suffix: string, colorMap: Map<string, string>) {
+  const rows = data.map((item) => {
+    const stackEntries = Object.entries(item)
+      .filter(([key]) => key.endsWith(suffix))
+      .map(([key, rawValue]) => ({
+        orgao: key.slice(0, -suffix.length),
+        value: typeof rawValue === "number" ? rawValue : Number(rawValue ?? 0),
+      }))
+      .filter((entry) => Number.isFinite(entry.value) && entry.value > 0)
+      .sort((left, right) => right.value - left.value || left.orgao.localeCompare(right.orgao));
+
+    const row = { ...item } as ChartRow & {
+      stackItems?: Array<{ name: string; value: number; color: string }>;
+    };
+    row.stackItems = stackEntries
+      .map((entry) => ({
+        name: entry.orgao,
+        value: entry.value,
+        color: colorMap.get(entry.orgao) ?? "#5b8cff",
+      }))
+      .reverse();
+
+    stackEntries.forEach((entry, index) => {
+      row[`stack_slot_${index}`] = entry.value;
+      row[`stack_slot_${index}_color`] = colorMap.get(entry.orgao) ?? "#5b8cff";
+    });
+
+    return row;
+  });
+
+  const maxSlots = rows.reduce((highest, row) => Math.max(highest, Array.isArray(row.stackItems) ? row.stackItems.length : 0), 0);
+  return { rows, maxSlots };
+}
+
+function FluxoBarTooltip({
+  active,
+  payload,
 }: {
-  data: Array<{ orgao: string; total?: number; registros?: number; processos?: number }>;
-  metricScope: MetricScope;
+  active?: boolean;
+  payload?: Array<{ payload?: ChartRow }>;
 }) {
-  const dataKey = metricScope === "registros" ? "registros" : "processos";
-  const label = metricScope === "registros" ? "Registros" : "Processos";
+  if (!active) {
+    return null;
+  }
+
+  const stackItems = Array.isArray(payload?.[0]?.payload?.stackItems)
+    ? (payload?.[0]?.payload?.stackItems as Array<{ name: string; value: number; color: string }>)
+    : [];
+
+  if (!stackItems.length) {
+    return null;
+  }
+
+  const total = stackItems.reduce((sum, item) => sum + item.value, 0);
 
   return (
-    <ChartContainer>
-      <BarChart data={data}>
-        <CartesianGrid stroke="#243145" strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="orgao" stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} angle={-20} height={60} textAnchor="end" />
-        <YAxis stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
-        <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e2e8f0" }} />
-        <Bar dataKey={dataKey} name={label} fill="#5b8cff" radius={[6, 6, 0, 0]} />
-      </BarChart>
-    </ChartContainer>
+    <div style={tooltipStyle}>
+      <p className="mb-2 text-center text-base font-semibold text-slate-100">{total}</p>
+      <div className="space-y-1.5">
+        {stackItems.map((item) => (
+          <p key={`${item.name}-${item.value}`} style={{ color: item.color }} className="text-sm font-medium">
+            {item.name}: {item.value}
+          </p>
+        ))}
+      </div>
+    </div>
   );
 }
 
-export function OrgTimelineChart({
-  data,
+function StatusTimelineTooltip({
+  active,
+  payload,
+  layerMode,
+  series,
   metricScope,
-  periodKey,
 }: {
-  data: ChartRow[];
+  active?: boolean;
+  payload?: Array<{ payload?: ChartRow }>;
+  layerMode: StatusLayerMode;
+  series: Array<{ orgao: string; color: string }>;
   metricScope: MetricScope;
-  periodKey: string;
 }) {
-  const suffix = metricScope === "registros" ? "__registros" : "__processos";
-  const keys = Array.from(new Set(data.flatMap((item) => Object.keys(item).filter((key) => key.endsWith(suffix)))));
-  const chartData = data.map((item) => {
-    const enriched: ChartRow = { ...item };
-    for (const key of keys) {
-      if (typeof enriched[key] !== "number") {
-        enriched[key] = 0;
+  if (!active) {
+    return null;
+  }
+
+  const row = payload?.[0]?.payload;
+  if (!row) {
+    return null;
+  }
+
+  const processadosSuffix = metricScope === "registros" ? "__processados_registros" : "__processados_processos";
+  const juntadosSuffix = metricScope === "registros" ? "__juntados_registros" : "__juntados_processos";
+
+  const items = series
+    .map((serie) => {
+      const processadosRaw = row[`${serie.orgao}${processadosSuffix}`];
+      const juntadosRaw = row[`${serie.orgao}${juntadosSuffix}`];
+      const processados = typeof processadosRaw === "number" ? processadosRaw : Number(processadosRaw ?? 0);
+      const juntados = typeof juntadosRaw === "number" ? juntadosRaw : Number(juntadosRaw ?? 0);
+
+      return {
+        orgao: serie.orgao,
+        color: serie.color,
+        processados: Number.isFinite(processados) ? processados : 0,
+        juntados: Number.isFinite(juntados) ? juntados : 0,
+      };
+    })
+    .filter((item) => {
+      if (layerMode === "processados") {
+        return item.processados > 0;
       }
-    }
-    return enriched;
-  });
-  const showDots = chartData.length <= 8;
-  const dayChangeMarkers = getDayChangeMarkers(chartData, periodKey);
+      if (layerMode === "juntados") {
+        return item.juntados > 0;
+      }
+      return item.processados > 0 || item.juntados > 0;
+    })
+    .sort((left, right) => {
+      const leftValue = layerMode === "processados" ? left.processados : layerMode === "juntados" ? left.juntados : Math.max(left.processados, left.juntados);
+      const rightValue = layerMode === "processados" ? right.processados : layerMode === "juntados" ? right.juntados : Math.max(right.processados, right.juntados);
+      return rightValue - leftValue || left.orgao.localeCompare(right.orgao);
+    });
+
+  if (!items.length) {
+    return null;
+  }
+
+  const totalProcessados = items.reduce((sum, item) => sum + item.processados, 0);
+  const totalJuntados = items.reduce((sum, item) => sum + item.juntados, 0);
 
   return (
-    <ChartContainer>
-      <LineChart data={chartData}>
-        <CartesianGrid stroke="#243145" strokeDasharray="3 3" />
-        <XAxis dataKey="label" stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
-        <YAxis stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
-        <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e2e8f0" }} />
-        <Legend wrapperStyle={{ color: "#cbd5e1" }} />
-        {dayChangeMarkers.map((label) => (
-          <ReferenceLine key={`day-${label}`} x={label} stroke="#6d5efc" strokeDasharray="5 5" strokeOpacity={0.9} />
+    <div style={tooltipStyle}>
+      <div className="mb-3 space-y-1 text-center">
+        {layerMode !== "juntados" ? <p className="text-sm font-semibold text-slate-100">Processados: {totalProcessados}</p> : null}
+        {layerMode !== "processados" ? <p className="text-sm font-semibold text-slate-100">Juntados: {totalJuntados}</p> : null}
+      </div>
+      <div className="space-y-1.5">
+        {items.map((item) => (
+          <div key={item.orgao} className="space-y-1">
+            {layerMode !== "juntados" ? (
+              <p style={{ color: item.color }} className="text-sm font-medium">
+                {item.orgao}: {item.processados}
+              </p>
+            ) : null}
+            {layerMode !== "processados" ? (
+              <p style={{ color: item.color }} className="text-sm font-medium">
+                {item.orgao}: {item.juntados}
+              </p>
+            ) : null}
+          </div>
         ))}
-        {keys.slice(0, 5).map((key, index) => (
-          <Line
-            key={key}
-            dataKey={key}
-            name={key.replace(suffix, "")}
-            type="monotone"
-            stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
-            strokeWidth={2}
-            dot={showDots ? { r: 4, strokeWidth: 0, fill: SERIES_COLORS[index % SERIES_COLORS.length] } : false}
-            activeDot={{ r: 6 }}
-          />
-        ))}
-      </LineChart>
-    </ChartContainer>
+      </div>
+    </div>
   );
 }
 
@@ -117,53 +243,42 @@ export function FluxoTimelineChart({
   const inclusoesLabel = "Entrada";
   const processamentosLabel = metricScope === "registros" ? "Registros processados" : "Autos processados";
   const dayChangeMarkers = getDayChangeMarkers(data, periodKey);
+  const xAxisProps = getTimelineXAxisProps(periodKey);
 
   if (mode === "bar") {
     const inclusoesSuffix = metricScope === "registros" ? "__inclusoes_registros" : "__inclusoes_processos";
     const processamentosSuffix = metricScope === "registros" ? "__processamentos_registros" : "__processamentos_processos";
     const stackedSuffix = breakdownMode === "entrada" ? inclusoesSuffix : processamentosSuffix;
-    const stackedOrgans = Array.from(
-      new Set(
-        data.flatMap((item) =>
-          Object.keys(item)
-            .filter((key) => key.endsWith(stackedSuffix) && typeof item[key] === "number" && Number(item[key]) > 0)
-            .map((key) => key.slice(0, -stackedSuffix.length)),
-        ),
-      ),
-    );
+    const stackedOrgans = buildFluxoStackOrder(data, stackedSuffix);
+    const colorMap = buildFluxoColorMap(stackedOrgans);
+    const { rows, maxSlots } = buildStackedBarRows(data, stackedSuffix, colorMap);
 
     return (
       <ChartContainer>
-        <BarChart data={data}>
+        <BarChart data={rows}>
           <CartesianGrid stroke="#243145" strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="label" stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
+          <XAxis
+            dataKey="bucket"
+            tickFormatter={(_, index) => {
+              const value = rows[index]?.label;
+              return typeof value === "string" ? value : "";
+            }}
+            stroke="#8ea3c3"
+            tick={{ fill: "#8ea3c3", fontSize: 12 }}
+            {...xAxisProps}
+          />
           <YAxis stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
-          <Tooltip content={<FilteredChartTooltip hideZeroValues />} />
-          <Legend wrapperStyle={{ color: "#cbd5e1" }} />
-          {breakdownMode === "entrada"
-            ? stackedOrgans.map((orgao, index) => (
-                <Bar
-                  key={orgao}
-                  dataKey={`${orgao}${inclusoesSuffix}`}
-                  name={`${orgao} · Entrada`}
-                  stackId="inclusoes"
-                  fill={SERIES_COLORS[index % SERIES_COLORS.length]}
-                  radius={index === stackedOrgans.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}
-                />
-              ))
-            : null}
-          {breakdownMode === "entrada"
-            ? null
-            : stackedOrgans.map((orgao, index) => (
-                <Bar
-                  key={orgao}
-                  dataKey={`${orgao}${processamentosSuffix}`}
-                  name={`${orgao} · Processados`}
-                  stackId="processamentos"
-                  fill={SERIES_COLORS[index % SERIES_COLORS.length]}
-                  radius={index === stackedOrgans.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}
-                />
+          <Tooltip content={<FluxoBarTooltip />} labelFormatter={formatTooltipLabel} />
+          {dayChangeMarkers.map((bucket) => (
+            <ReferenceLine key={`day-${bucket}`} x={bucket} stroke="#6d5efc" strokeDasharray="5 5" strokeOpacity={0.9} />
+          ))}
+          {Array.from({ length: maxSlots }, (_, index) => (
+            <Bar key={`stack-slot-${index}`} dataKey={`stack_slot_${index}`} stackId="fluxo" radius={index === maxSlots - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]}>
+              {rows.map((row, rowIndex) => (
+                <Cell key={`stack-slot-${index}-${rowIndex}`} fill={String(row[`stack_slot_${index}_color`] ?? "#5b8cff")} />
               ))}
+            </Bar>
+          ))}
         </BarChart>
       </ChartContainer>
     );
@@ -173,12 +288,20 @@ export function FluxoTimelineChart({
     <ChartContainer>
       <LineChart data={data}>
         <CartesianGrid stroke="#243145" strokeDasharray="3 3" />
-        <XAxis dataKey="label" stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
+        <XAxis
+          dataKey="bucket"
+          tickFormatter={(_, index) => {
+            const value = data[index]?.label;
+            return typeof value === "string" ? value : "";
+          }}
+          stroke="#8ea3c3"
+          tick={{ fill: "#8ea3c3", fontSize: 12 }}
+          {...xAxisProps}
+        />
         <YAxis stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
-        <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e2e8f0" }} />
-        <Legend wrapperStyle={{ color: "#cbd5e1" }} />
-        {dayChangeMarkers.map((label) => (
-          <ReferenceLine key={`day-${label}`} x={label} stroke="#6d5efc" strokeDasharray="5 5" strokeOpacity={0.9} />
+        <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e2e8f0" }} labelFormatter={formatTooltipLabel} />
+        {dayChangeMarkers.map((bucket) => (
+          <ReferenceLine key={`day-${bucket}`} x={bucket} stroke="#6d5efc" strokeDasharray="5 5" strokeOpacity={0.9} />
         ))}
         <Line dataKey={inclusoesKey} name={inclusoesLabel} type="monotone" stroke="#5b8cff" strokeWidth={2.5} dot={false} />
         <Line dataKey={processamentosKey} name={processamentosLabel} type="monotone" stroke="#18c29c" strokeWidth={2.5} dot={false} />
@@ -191,21 +314,41 @@ export function OrganSelector({
   rankedOrgans,
   selectedOrgans,
   onChange,
+  layerMode,
+  metricScope,
 }: {
-  rankedOrgans: string[];
+  rankedOrgans: ObservabilidadeTotalPorOrgao[];
   selectedOrgans: string[];
   onChange: (items: string[]) => void;
+  layerMode: StatusLayerMode;
+  metricScope: MetricScope;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [draftSelectedOrgans, setDraftSelectedOrgans] = useState<string[]>(selectedOrgans);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const processadosKey = metricScope === "registros" ? "processados_registros" : "processados_processos";
+  const juntadosKey = metricScope === "registros" ? "juntados_registros" : "juntados_processos";
+  const rankedOrgansByName = useMemo(() => rankedOrgans.map((item) => item.orgao), [rankedOrgans]);
+  const orgaoStats = useMemo(
+    () =>
+      new Map(
+        rankedOrgans.map((item) => [
+          item.orgao,
+          {
+            processados: Number(item[processadosKey] ?? 0),
+            juntados: Number(item[juntadosKey] ?? 0),
+          },
+        ]),
+      ),
+    [juntadosKey, processadosKey, rankedOrgans],
+  );
   const orderedSelectedOrgans = useMemo(
-    () => rankedOrgans.filter((orgao) => selectedOrgans.includes(orgao)),
-    [rankedOrgans, selectedOrgans],
+    () => rankedOrgansByName.filter((orgao) => selectedOrgans.includes(orgao)),
+    [rankedOrgansByName, selectedOrgans],
   );
   const orderedDraftOrgans = useMemo(
-    () => rankedOrgans.filter((orgao) => draftSelectedOrgans.includes(orgao)),
-    [rankedOrgans, draftSelectedOrgans],
+    () => rankedOrgansByName.filter((orgao) => draftSelectedOrgans.includes(orgao)),
+    [draftSelectedOrgans, rankedOrgansByName],
   );
 
   useEffect(() => {
@@ -236,7 +379,7 @@ export function OrganSelector({
   }
 
   function selectAllDraft() {
-    setDraftSelectedOrgans(rankedOrgans);
+    setDraftSelectedOrgans(rankedOrgansByName);
   }
 
   function clearAllDraft() {
@@ -254,6 +397,8 @@ export function OrganSelector({
     onChange(orderedDraftOrgans);
     setIsOpen(false);
   }
+
+  const itemColumnsClass = layerMode === "both" ? "grid-cols-[auto_minmax(0,1fr)_auto_auto]" : "grid-cols-[auto_minmax(0,1fr)_auto]";
 
   return (
     <div ref={containerRef} className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
@@ -275,7 +420,7 @@ export function OrganSelector({
         ))}
         <div className="relative">
           <button
-            className="inline-flex min-w-[200px] items-center justify-between gap-3 rounded-full border border-slate-700/90 bg-slate-950/35 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-400/35 hover:bg-slate-950/55 hover:text-white"
+            className="inline-flex min-w-[220px] items-center justify-between gap-3 rounded-full border border-slate-700/90 bg-slate-950/35 px-4 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-cyan-400/35 hover:bg-slate-950/55 hover:text-white"
             type="button"
             onClick={handleToggleOpen}
           >
@@ -283,18 +428,24 @@ export function OrganSelector({
             <span className={`text-[10px] text-slate-400 transition ${isOpen ? "rotate-180" : ""}`}>▼</span>
           </button>
           {isOpen ? (
-            <div className="absolute left-0 top-[calc(100%+0.6rem)] z-20 w-[290px] rounded-2xl border border-slate-700 bg-slate-950/95 p-3 shadow-2xl shadow-slate-950/60 backdrop-blur">
-              <div className="mb-2 flex items-center justify-between px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                <span>Órgãos do período</span>
-                <span>{draftSelectedOrgans.length} selecionados</span>
+            <div className="absolute left-0 top-[calc(100%+0.6rem)] z-20 w-[384px] rounded-2xl border border-slate-700 bg-slate-950/95 p-3 shadow-2xl shadow-slate-950/60 backdrop-blur">
+              <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1 px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <span>Órgãos</span>
+                <div className="flex items-center justify-end gap-4">
+                  {layerMode !== "juntados" ? <span className="whitespace-nowrap text-right">Proc.</span> : null}
+                  {layerMode !== "processados" ? <span className="whitespace-nowrap text-right">Junt.</span> : null}
+                </div>
+                <span className="whitespace-nowrap">{draftSelectedOrgans.length} selecionados</span>
+                <span />
               </div>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                {rankedOrgans.map((orgao) => {
+                {rankedOrgansByName.map((orgao) => {
                   const checked = draftSelectedOrgans.includes(orgao);
+                  const stats = orgaoStats.get(orgao) ?? { processados: 0, juntados: 0 };
                   return (
                     <label
                       key={orgao}
-                      className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-800/80 bg-slate-900/55 px-3 py-2 text-xs text-slate-200 transition hover:border-cyan-400/25 hover:bg-slate-900/80"
+                      className={`grid cursor-pointer items-center gap-3 rounded-xl border border-slate-800/80 bg-slate-900/55 px-3 py-2 text-xs text-slate-200 transition hover:border-cyan-400/25 hover:bg-slate-900/80 ${itemColumnsClass}`}
                     >
                       <input
                         checked={checked}
@@ -303,6 +454,8 @@ export function OrganSelector({
                         onChange={() => toggleDraftOrgan(orgao)}
                       />
                       <span className="truncate">{orgao}</span>
+                      {layerMode !== "juntados" ? <span className="whitespace-nowrap text-right text-slate-300">{stats.processados}</span> : null}
+                      {layerMode !== "processados" ? <span className="whitespace-nowrap text-right text-slate-300">{stats.juntados}</span> : null}
                     </label>
                   );
                 })}
@@ -359,7 +512,6 @@ export function StatusTotalsChart({
         <XAxis dataKey="orgao" stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} angle={-20} height={60} textAnchor="end" />
         <YAxis stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
         <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e2e8f0" }} />
-        <Legend wrapperStyle={{ color: "#cbd5e1" }} />
         {layerMode !== "juntados" ? <Bar dataKey={processadosKey} name="Processados" fill="#5b8cff" radius={[6, 6, 0, 0]} /> : null}
         {layerMode !== "processados" ? <Bar dataKey={juntadosKey} name="Juntados" fill="#18c29c" radius={[6, 6, 0, 0]} /> : null}
       </BarChart>
@@ -396,17 +548,26 @@ export function StatusTimelineChart({
   });
   const showDots = chartData.length <= 8;
   const dayChangeMarkers = getDayChangeMarkers(chartData, periodKey);
+  const xAxisProps = getTimelineXAxisProps(periodKey);
 
   return (
     <ChartContainer>
       <LineChart data={chartData}>
         <CartesianGrid stroke="#243145" strokeDasharray="3 3" />
-        <XAxis dataKey="label" stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
+        <XAxis
+          dataKey="bucket"
+          tickFormatter={(_, index) => {
+            const value = chartData[index]?.label;
+            return typeof value === "string" ? value : "";
+          }}
+          stroke="#8ea3c3"
+          tick={{ fill: "#8ea3c3", fontSize: 12 }}
+          {...xAxisProps}
+        />
         <YAxis stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
-        <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e2e8f0" }} />
-        <Legend wrapperStyle={{ color: "#cbd5e1" }} />
-        {dayChangeMarkers.map((label) => (
-          <ReferenceLine key={`day-${label}`} x={label} stroke="#6d5efc" strokeDasharray="5 5" strokeOpacity={0.9} />
+        <Tooltip content={<StatusTimelineTooltip layerMode={layerMode} series={series} metricScope={metricScope} />} />
+        {dayChangeMarkers.map((bucket) => (
+          <ReferenceLine key={`day-${bucket}`} x={bucket} stroke="#6d5efc" strokeDasharray="5 5" strokeOpacity={0.9} />
         ))}
         {series.map((item) =>
           layerMode !== "juntados" ? (

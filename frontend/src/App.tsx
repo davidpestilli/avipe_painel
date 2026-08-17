@@ -81,7 +81,6 @@ function App() {
   const [error, setError] = useState("");
   const [returnQuery, setReturnQuery] = useState("");
   const [periodo, setPeriodo] = useState("today");
-  const [orgaoChartMode, setOrgaoChartMode] = useState<ChartMode>("bar");
   const [fluxoChartMode, setFluxoChartMode] = useState<ChartMode>("line");
   const [statusChartMode, setStatusChartMode] = useState<ChartMode>("bar");
   const [metricScope, setMetricScope] = useState<MetricScope>("registros");
@@ -111,8 +110,10 @@ function App() {
   }, [periodo, currentView]);
 
   useEffect(() => {
-    setSelectedOrgans(getDefaultStatusOrgans(observabilidade));
-  }, [observabilidade, activeHomeTab, statusChartMode, metricScope, statusLayerMode, periodo]);
+    if (currentView !== "home" || activeHomeTab !== "status") {
+      setSelectedOrgans(getDefaultStatusOrgans(observabilidade));
+    }
+  }, [observabilidade, activeHomeTab, currentView]);
 
   async function bootstrap() {
     setLoading(true);
@@ -133,7 +134,6 @@ function App() {
     try {
       const payload = await fetchObservabilidade(nextPeriodo);
       setObservabilidade(payload);
-      setSelectedOrgans(getDefaultStatusOrgans(payload));
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Falha ao carregar os gráficos da Home.");
     } finally {
@@ -273,8 +273,6 @@ function App() {
             onPeriodoChange={setPeriodo}
             activeHomeTab={activeHomeTab}
             onActiveHomeTabChange={setActiveHomeTab}
-            orgaoChartMode={orgaoChartMode}
-            onOrgaoChartModeChange={setOrgaoChartMode}
             fluxoChartMode={fluxoChartMode}
             onFluxoChartModeChange={setFluxoChartMode}
             statusChartMode={statusChartMode}

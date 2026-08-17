@@ -13,9 +13,9 @@ _SAO_PAULO = ZoneInfo("America/Sao_Paulo")
 
 PERIOD_CONFIG = {
     "today": {"label": "Hoje", "kind": "calendar", "hours": 24, "bucket_hours": 1},
-    "24h": {"label": "Ultimas 24h", "kind": "rolling", "hours": 24, "bucket_hours": 2},
-    "48h": {"label": "Ultimas 48h", "kind": "rolling", "hours": 48, "bucket_hours": 8},
-    "72h": {"label": "Ultimas 72h", "kind": "rolling", "hours": 72, "bucket_hours": 18},
+    "24h": {"label": "Ultimas 24h", "kind": "rolling", "hours": 24, "bucket_hours": 1},
+    "48h": {"label": "Ultimas 48h", "kind": "rolling", "hours": 48, "bucket_hours": 2},
+    "72h": {"label": "Ultimas 72h", "kind": "rolling", "hours": 72, "bucket_hours": 3},
     "week": {"label": "Esta semana", "kind": "calendar_week", "bucket_hours": 24},
     "7d": {"label": "Ultimos 7 dias", "kind": "rolling", "hours": 24 * 7, "bucket_hours": 24},
     "month": {"label": "Este mes", "kind": "calendar_month", "bucket_hours": 24},
@@ -126,12 +126,12 @@ def _iterar_buckets_periodo(periodo: PeriodWindow, buckets_existentes: set[datet
 def _formatar_bucket(valor: datetime, horas_por_bucket: int) -> str:
     if horas_por_bucket >= 24:
         return valor.strftime("%d/%m")
-    if horas_por_bucket in {8, 18}:
-        return valor.strftime("%d/%m %Hh")
-    if valor.minute or valor.second:
-        return valor.strftime("%Hh")
     if horas_por_bucket == 1:
         return valor.strftime("%Hh")
+    if horas_por_bucket in {2, 3}:
+        return valor.strftime("%d/%m %Hh") if valor.hour == 0 else valor.strftime("%Hh")
+    if horas_por_bucket in {8, 18}:
+        return valor.strftime("%d/%m %Hh")
     fim = valor + timedelta(hours=horas_por_bucket)
     return f"{valor.strftime('%d/%m %Hh')} - {fim.strftime('%Hh')}"
 

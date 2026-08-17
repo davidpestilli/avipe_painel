@@ -54,21 +54,21 @@ const SEARCH_FILTER_KEYS = [
   "juntado",
 ] as const;
 
-function formatarDataReferencia(valor: string): string {
-  if (!valor || valor === "Sem data") {
+function formatReferenceDate(value: string): string {
+  if (!value || value === "Sem data") {
     return "Sem data";
   }
 
-  const [ano, mes, dia] = valor.split("-");
-  if (!ano || !mes || !dia) {
-    return valor;
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) {
+    return value;
   }
 
-  return `${dia}/${mes}/${ano}`;
+  return `${day}/${month}/${year}`;
 }
 
-function abrirPesquisaPorDivergencia(kind: ModalKind, item: ObservabilidadeDivergenciaItem) {
-  const filtros = {
+function openSearchFromDivergence(kind: ModalKind, item: ObservabilidadeDivergenciaItem) {
+  const filters = {
     nuprocesso: "",
     cpf: "",
     sig_orgao: item.orgao,
@@ -83,19 +83,19 @@ function abrirPesquisaPorDivergencia(kind: ModalKind, item: ObservabilidadeDiver
     juntado: kind === "juntados" ? "pending" : "",
   };
 
-  const queryString = buildQueryString(filtros, SEARCH_FILTER_KEYS);
+  const queryString = buildQueryString(filters, SEARCH_FILTER_KEYS);
   navigateTo("/pesquisas/", queryString);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
 function DivergenceSection({
   title,
-  resumo,
+  summary,
   emptyText,
   kind,
 }: {
   title: string;
-  resumo: ObservabilidadeDivergenciaResumo;
+  summary: ObservabilidadeDivergenciaResumo;
   emptyText: string;
   kind: ModalKind;
 }) {
@@ -107,12 +107,12 @@ function DivergenceSection({
         <div>
           <h4 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-300">{title}</h4>
           <p className="mt-1 text-sm text-slate-400">
-            {resumo.registros} registros divergentes · {resumo.processos} processos envolvidos
+            {summary.registros} registros divergentes · {summary.processos} processos envolvidos
           </p>
         </div>
       </div>
 
-      {resumo.itens.length ? (
+      {summary.itens.length ? (
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-800">
           <table className="min-w-full divide-y divide-slate-800 text-sm">
             <thead className="bg-slate-950/65 text-slate-400">
@@ -125,17 +125,17 @@ function DivergenceSection({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 bg-slate-950/25 text-slate-100">
-              {resumo.itens.map((item) => (
+              {summary.itens.map((item) => (
                 <tr key={`${title}-${item.orgao}-${item.data_referencia}`}>
                   <td className="px-4 py-3">{item.orgao}</td>
-                  <td className="px-4 py-3 text-center">{formatarDataReferencia(item.data_referencia)}</td>
+                  <td className="px-4 py-3 text-center">{formatReferenceDate(item.data_referencia)}</td>
                   <td className="px-4 py-3 text-center">{item.registros}</td>
                   <td className="px-4 py-3 text-center">{item.processos}</td>
                   <td className="px-4 py-3 text-center">
                     <button
                       className="inline-flex min-w-[64px] items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/60 hover:bg-cyan-400/18"
                       type="button"
-                      onClick={() => abrirPesquisaPorDivergencia(kind, item)}
+                      onClick={() => openSearchFromDivergence(kind, item)}
                     >
                       Ir
                     </button>
@@ -153,22 +153,22 @@ function DivergenceSection({
 }
 
 function DivergenceModalContent({
-  geral,
-  periodo,
-  periodoLabel,
+  general,
+  period,
+  periodLabel,
   emptyText,
   kind,
 }: {
-  geral: ObservabilidadeDivergenciaResumo;
-  periodo: ObservabilidadeDivergenciaResumo;
-  periodoLabel: string;
+  general: ObservabilidadeDivergenciaResumo;
+  period: ObservabilidadeDivergenciaResumo;
+  periodLabel: string;
   emptyText: string;
   kind: ModalKind;
 }) {
   return (
     <div className="space-y-4">
-      <DivergenceSection title="Visão geral" resumo={geral} emptyText={emptyText} kind={kind} />
-      <DivergenceSection title={`Recorte do período: ${periodoLabel}`} resumo={periodo} emptyText={emptyText} kind={kind} />
+      <DivergenceSection title="Visão geral" summary={general} emptyText={emptyText} kind={kind} />
+      <DivergenceSection title={`Recorte do período: ${periodLabel}`} summary={period} emptyText={emptyText} kind={kind} />
     </div>
   );
 }
@@ -196,39 +196,18 @@ export function HomeDashboardHeader({
   const periodLabel = observabilidade?.periodo.rotulo ?? "Período selecionado";
   const statusTotals = observabilidade?.status_por_orgao.totais_por_orgao ?? [];
 
-  const activeTitle =
-    activeHomeTab === "localizador"
-      ? "Órgãos com envios ao localizador"
-      : activeHomeTab === "fluxo"
-        ? "Inclusão no localizador x processamento"
-        : "Processamento x Juntada por Unidade";
-
-  const displayTitle =
-    activeHomeTab === "localizador"
-      ? "Inclusões por unidade"
-      : activeHomeTab === "fluxo"
-        ? "Entrada x processamento"
-        : activeTitle;
-
+  const activeTitle = activeHomeTab === "fluxo" ? "Inclusão no localizador x processamento" : "Processamento x Juntada por Unidade";
+  const displayTitle = activeHomeTab === "fluxo" ? "Entrada x processamento" : activeTitle;
   const activeBadge =
-    activeHomeTab === "localizador"
-      ? `${observabilidade?.entrada_localizador_por_orgao.resumo.orgaos_ativos ?? 0} órgãos ativos`
-      : activeHomeTab === "fluxo"
-        ? `${metricScope === "registros"
-            ? observabilidade?.inclusao_vs_processamento.resumo.inclusoes_registros ?? 0
-            : observabilidade?.inclusao_vs_processamento.resumo.inclusoes_processos ?? 0} ${metricScope}`
-        : `${statusTotals.length} órgãos com atividade`;
-
+    activeHomeTab === "fluxo"
+      ? `${metricScope === "registros"
+          ? observabilidade?.inclusao_vs_processamento.resumo.inclusoes_registros ?? 0
+          : observabilidade?.inclusao_vs_processamento.resumo.inclusoes_processos ?? 0} ${metricScope}`
+      : `${statusTotals.length} órgãos com atividade`;
   const activeSummary =
-    activeHomeTab === "localizador"
-      ? `Escopo: por unidade. No período ${periodLabel.toLowerCase()}, houve ${
-          metricScope === "registros"
-            ? observabilidade?.entrada_localizador_por_orgao.resumo.registros ?? 0
-            : observabilidade?.entrada_localizador_por_orgao.resumo.processos ?? 0
-        } ${metricScope} com inclusão no localizador.`
-      : activeHomeTab === "fluxo"
-        ? `Escopo: visão global. Comparativo temporal entre entradas no localizador e processamentos concluídos em ${metricScope}, dentro de ${periodLabel.toLowerCase()}.`
-        : "";
+    activeHomeTab === "fluxo"
+      ? `Comparativo temporal entre entradas no localizador e processamentos concluídos em ${metricScope}, dentro de ${periodLabel.toLowerCase()}.`
+      : `Comparativo por unidade entre processados e juntados em ${metricScope}, dentro de ${periodLabel.toLowerCase()}.`;
 
   const activeExtraControls =
     activeHomeTab === "status" ? (
@@ -237,7 +216,7 @@ export function HomeDashboardHeader({
         <MiniToggle label="Só processados" active={statusLayerMode === "processados"} onClick={() => onStatusLayerModeChange("processados")} />
         <MiniToggle label="Só juntados" active={statusLayerMode === "juntados"} onClick={() => onStatusLayerModeChange("juntados")} />
       </div>
-    ) : activeHomeTab === "fluxo" && activeChartMode === "bar" ? (
+    ) : activeChartMode === "bar" ? (
       <div className="flex gap-2 whitespace-nowrap">
         <MiniToggle label="Entrada" active={fluxoBreakdownMode === "entrada"} onClick={() => onFluxoBreakdownModeChange("entrada")} />
         <MiniToggle
@@ -273,6 +252,7 @@ export function HomeDashboardHeader({
   const metricCards = [
     {
       label: "Registros",
+      generalLabel: "Total geral",
       generalValue: observabilidade?.metricas.registros.geral ?? 0,
       periodValue: observabilidade?.metricas.registros.periodo ?? 0,
       accent: "cyan" as const,
@@ -280,6 +260,7 @@ export function HomeDashboardHeader({
     },
     {
       label: "Processos",
+      generalLabel: "Total geral",
       generalValue: observabilidade?.metricas.processos.geral ?? 0,
       periodValue: observabilidade?.metricas.processos.periodo ?? 0,
       accent: "violet" as const,
@@ -287,6 +268,7 @@ export function HomeDashboardHeader({
     },
     {
       label: "Processados",
+      generalLabel: "Total geral",
       generalValue: observabilidade?.metricas.processados.geral ?? 0,
       periodValue: observabilidade?.metricas.processados.periodo ?? 0,
       accent: "emerald" as const,
@@ -299,6 +281,7 @@ export function HomeDashboardHeader({
     },
     {
       label: "Juntados",
+      generalLabel: "Total geral",
       generalValue: observabilidade?.metricas.juntados.geral ?? 0,
       periodValue: observabilidade?.metricas.juntados.periodo ?? 0,
       accent: "amber" as const,
@@ -341,15 +324,15 @@ export function HomeDashboardHeader({
         </button>
 
         {showKpis ? (
-          <div className="mt-4 grid gap-3 xl:grid-cols-4">
+          <div className="mt-4 grid gap-4 lg:grid-cols-4">
             {metricCards.map((card) => (
               <MetricCard
                 key={card.label}
                 label={card.label}
-                generalLabel="Total geral"
+                generalLabel={card.generalLabel}
                 generalValue={card.generalValue}
-                periodLabel={periodLabel}
                 periodValue={card.periodValue}
+                periodLabel={periodLabel}
                 accent={card.accent}
                 helper={card.helper}
                 clickable={card.clickable}
@@ -361,73 +344,68 @@ export function HomeDashboardHeader({
         ) : null}
       </section>
 
-      <section className="rounded-[30px] border border-slate-800 bg-[linear-gradient(180deg,rgba(31,41,64,0.92)_0%,rgba(17,24,39,0.97)_100%)] p-4 shadow-2xl shadow-slate-950/40">
-        <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-950/55 p-1.5">
-            {HOME_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                className={`inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold transition ${
-                  activeHomeTab === tab.id
-                    ? "bg-[linear-gradient(135deg,#5b8cff_0%,#7c3aed_100%)] text-white shadow-lg shadow-indigo-500/20"
-                    : "text-slate-300 hover:bg-slate-900/80 hover:text-white"
-                }`}
-                type="button"
-                onClick={() => onActiveHomeTabChange(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <PeriodPicker value={periodo} onChange={onPeriodoChange} compact />
-        </div>
-
+      <ChartCard
+        sectionLabel="Observabilidade"
+        title={displayTitle}
+        badge={activeBadge}
+        summary={activeSummary}
+        tabs={HOME_TABS}
+        activeTab={activeHomeTab}
+        onTabChange={(value) => onActiveHomeTabChange(value as HomeChartTab)}
+        periodControl={<PeriodPicker value={periodo} onChange={onPeriodoChange} />}
+        rightControls={
+          <>
+            <div className="flex gap-2 whitespace-nowrap">
+              <MiniToggle label="Linhas" active={activeChartMode === "line"} onClick={() => onChartModeChange("line")} />
+              <MiniToggle label="Barras" active={activeChartMode === "bar"} onClick={() => onChartModeChange("bar")} />
+            </div>
+            <div className="flex gap-2 whitespace-nowrap">
+              <MiniToggle label="Registros" active={metricScope === "registros"} onClick={() => onMetricScopeChange("registros")} />
+              <MiniToggle label="Processos" active={metricScope === "processos"} onClick={() => onMetricScopeChange("processos")} />
+            </div>
+            {activeExtraControls}
+          </>
+        }
+      >
         {loadingHome ? (
-          <div className="px-2 py-8">
-            <p className="text-sm text-slate-300">Carregando observações do período selecionado...</p>
+          <div className="flex min-h-[340px] items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-14 w-14 animate-spin rounded-full border-2 border-cyan-300/20 border-t-cyan-300 border-r-fuchsia-400/70" />
+              <p className="text-sm text-slate-300">Atualizando a observabilidade do Watcher AVIPE...</p>
+            </div>
           </div>
-        ) : null}
+        ) : (
+          chartChildren
+        )}
+      </ChartCard>
 
-        {!loadingHome && observabilidade ? (
-          <ChartCard
-            title={displayTitle}
-            badge={activeBadge}
-            summary={activeSummary}
-            chartMode={activeChartMode}
-            onChartModeChange={onChartModeChange}
-            metricScope={metricScope}
-            onMetricScopeChange={onMetricScopeChange}
-            extraControls={activeExtraControls}
-          >
-            {chartChildren}
-          </ChartCard>
-        ) : null}
-      </section>
+      <InsightModal
+        open={activeModal === "processados"}
+        title="Diferenças entre entrada e processamento"
+        onClose={() => setActiveModal(null)}
+      >
+        <DivergenceModalContent
+          general={observabilidade?.divergencias.processados.geral ?? { registros: 0, processos: 0, itens: [] }}
+          period={observabilidade?.divergencias.processados.periodo ?? { registros: 0, processos: 0, itens: [] }}
+          periodLabel={periodLabel}
+          emptyText="Nenhuma diferença identificada entre entradas e processamentos."
+          kind="processados"
+        />
+      </InsightModal>
 
-      {observabilidade ? (
-        <>
-          <InsightModal open={activeModal === "processados"} title="Pendências de processamento" onClose={() => setActiveModal(null)}>
-            <DivergenceModalContent
-              geral={observabilidade.divergencias.processados.geral}
-              periodo={observabilidade.divergencias.processados.periodo}
-              periodoLabel={periodLabel}
-              emptyText="Nenhuma pendência de processamento encontrada."
-              kind="processados"
-            />
-          </InsightModal>
-
-          <InsightModal open={activeModal === "juntados"} title="Diferenças entre processamento e juntada" onClose={() => setActiveModal(null)}>
-            <DivergenceModalContent
-              geral={observabilidade.divergencias.juntados.geral}
-              periodo={observabilidade.divergencias.juntados.periodo}
-              periodoLabel={periodLabel}
-              emptyText="Nenhuma diferença entre processados e juntados foi encontrada."
-              kind="juntados"
-            />
-          </InsightModal>
-        </>
-      ) : null}
+      <InsightModal
+        open={activeModal === "juntados"}
+        title="Diferenças entre processamento e juntada"
+        onClose={() => setActiveModal(null)}
+      >
+        <DivergenceModalContent
+          general={observabilidade?.divergencias.juntados.geral ?? { registros: 0, processos: 0, itens: [] }}
+          period={observabilidade?.divergencias.juntados.periodo ?? { registros: 0, processos: 0, itens: [] }}
+          periodLabel={periodLabel}
+          emptyText="Nenhuma diferença identificada entre processamentos e juntadas."
+          kind="juntados"
+        />
+      </InsightModal>
     </>
   );
 }

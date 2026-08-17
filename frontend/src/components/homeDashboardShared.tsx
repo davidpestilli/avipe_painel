@@ -4,7 +4,7 @@ import { ResponsiveContainer } from "recharts";
 export type ChartMode = "line" | "bar";
 export type MetricScope = "registros" | "processos";
 export type StatusLayerMode = "both" | "processados" | "juntados";
-export type HomeChartTab = "localizador" | "fluxo" | "status";
+export type HomeChartTab = "fluxo" | "status";
 export type FluxoBreakdownMode = "entrada" | "processamento";
 export type ChartRow = Record<string, string | number>;
 
@@ -23,18 +23,25 @@ export const PERIOD_OPTIONS = [
 export const HOME_TABS = [
   { id: "fluxo", label: "Entrada x Processamento" },
   { id: "status", label: "Processamento x Juntada" },
-  { id: "localizador", label: "Inclusões por Unidade" },
 ] satisfies Array<{ id: HomeChartTab; label: string }>;
 
 export const SERIES_COLORS = ["#5b8cff", "#18c29c", "#f59e0b", "#ef5da8", "#8b5cf6", "#22d3ee", "#f97316", "#94a3b8", "#fb7185", "#2dd4bf"];
 
 export function PeriodPicker({ value, onChange, compact = false }: { value: string; onChange: (value: string) => void; compact?: boolean }) {
   return (
-    <div className={`${compact ? "rounded-2xl border border-slate-800 bg-slate-950/55 p-1.5" : "rounded-[26px] border border-slate-800 bg-slate-950/65 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"}`}>
+    <div
+      className={
+        compact
+          ? "rounded-2xl border border-slate-800 bg-slate-950/55 p-1.5"
+          : "rounded-[26px] border border-slate-800 bg-slate-950/65 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+      }
+    >
       {!compact ? (
         <div className="mb-3 flex items-center gap-2">
           <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Período</span>
-          <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-2.5 py-1 text-[11px] font-medium text-violet-200">Observação temporal</span>
+          <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-2.5 py-1 text-[11px] font-medium text-violet-200">
+            Observação temporal
+          </span>
         </div>
       ) : null}
       <div className="flex flex-wrap gap-2">
@@ -100,7 +107,9 @@ export function MetricCard({
       <div className="flex items-start justify-between gap-3">
         <div className="text-sm leading-5 text-slate-300">{label}</div>
         <div className="flex flex-col items-end gap-2">
-          <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300">KPI</span>
+          <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-300">
+            KPI
+          </span>
           {alertLabel ? (
             <span className="rounded-full border border-amber-300/35 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100">
               {alertLabel}
@@ -161,55 +170,78 @@ export function InsightModal({
 }
 
 export function ChartCard({
+  sectionLabel = "Observabilidade",
   title,
   badge,
   summary,
-  chartMode,
-  onChartModeChange,
-  metricScope,
-  onMetricScopeChange,
-  extraControls,
+  summaryNoWrap = false,
+  compactBadge = false,
+  tabs,
+  activeTab,
+  onTabChange,
+  periodControl,
+  rightControls,
   children,
 }: {
+  sectionLabel?: string;
   title: string;
   badge: string;
   summary?: string;
-  chartMode: ChartMode;
-  onChartModeChange: (value: ChartMode) => void;
-  metricScope: MetricScope;
-  onMetricScopeChange: (value: MetricScope) => void;
-  extraControls?: ReactNode;
+  summaryNoWrap?: boolean;
+  compactBadge?: boolean;
+  tabs?: Array<{ id: string; label: string }>;
+  activeTab?: string;
+  onTabChange?: (value: string) => void;
+  periodControl?: ReactNode;
+  rightControls?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="pt-5">
-      <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-4 border-b border-slate-800 pb-4">
+        {(tabs?.length || periodControl || rightControls) ? (
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            {tabs?.length ? (
+              <div className="flex flex-wrap gap-3">
+                {tabs.map((tab) => (
+                  <MiniToggle
+                    key={tab.id}
+                    label={tab.label}
+                    active={activeTab === tab.id}
+                    onClick={() => onTabChange?.(tab.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex flex-col gap-3 xl:items-end">
+              {periodControl}
+              {rightControls ? (
+                <div className="flex flex-nowrap items-center gap-3 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-950/45 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                  {rightControls}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         <div className="max-w-3xl">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Observabilidade</div>
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">{sectionLabel}</div>
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-xl font-semibold text-white">{title}</h3>
-            <span className="rounded-full border border-fuchsia-400/25 bg-fuchsia-400/10 px-3 py-1 text-xs font-semibold text-fuchsia-200">{badge}</span>
+            <span
+              className={`rounded-full border border-fuchsia-400/25 bg-fuchsia-400/10 text-fuchsia-200 ${
+                compactBadge ? "px-2.5 py-0.5 text-[11px] font-semibold" : "px-3 py-1 text-xs font-semibold"
+              }`}
+            >
+              {badge}
+            </span>
           </div>
-          {summary ? <p className="mt-2 max-w-3xl text-sm text-slate-400">{summary}</p> : null}
-        </div>
-        <div className="xl:max-w-full">
-          <div className="flex flex-nowrap items-center gap-3 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-950/45 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="flex gap-2 rounded-xl border border-slate-700/80 bg-slate-900/85 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-              <MiniToggle label="Linhas" active={chartMode === "line"} onClick={() => onChartModeChange("line")} />
-              <MiniToggle label="Barras" active={chartMode === "bar"} onClick={() => onChartModeChange("bar")} />
-            </div>
-            <div className="h-8 w-px bg-slate-700" />
-            <div className="flex gap-2 rounded-xl border border-slate-700/80 bg-slate-900/85 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-              <MiniToggle label="Registros" active={metricScope === "registros"} onClick={() => onMetricScopeChange("registros")} />
-              <MiniToggle label="Processos" active={metricScope === "processos"} onClick={() => onMetricScopeChange("processos")} />
-            </div>
-            {extraControls ? <div className="h-8 w-px bg-slate-700" /> : null}
-            {extraControls ? (
-              <div className="flex gap-2 whitespace-nowrap rounded-xl border border-slate-700/80 bg-slate-900/85 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                {extraControls}
-              </div>
-            ) : null}
-          </div>
+          {summary ? (
+            <p className={`mt-2 max-w-3xl text-sm text-slate-400 ${summaryNoWrap ? "whitespace-nowrap" : ""}`}>{summary}</p>
+          ) : null}
         </div>
       </div>
       <div className="pt-5">{children}</div>
@@ -248,23 +280,34 @@ export function FilteredChartTooltip({
   payload,
   label,
   hideZeroValues = false,
+  sortNames,
 }: {
   active?: boolean;
   payload?: Array<{ color?: string; name?: string; value?: number | string }>;
   label?: string | number;
   hideZeroValues?: boolean;
+  sortNames?: string[];
 }) {
   if (!active || !payload?.length) {
     return null;
   }
 
-  const visibleItems = payload.filter((item) => {
+  let visibleItems = payload.filter((item) => {
     if (!hideZeroValues) {
       return true;
     }
     const numericValue = typeof item.value === "number" ? item.value : Number(item.value ?? 0);
     return Number.isFinite(numericValue) && numericValue > 0;
   });
+
+  if (sortNames?.length) {
+    const positions = new Map(sortNames.map((name, index) => [name, index]));
+    visibleItems = [...visibleItems].sort((left, right) => {
+      const leftIndex = positions.get(left.name ?? "") ?? Number.MAX_SAFE_INTEGER;
+      const rightIndex = positions.get(right.name ?? "") ?? Number.MAX_SAFE_INTEGER;
+      return leftIndex - rightIndex;
+    });
+  }
 
   if (!visibleItems.length) {
     return null;
@@ -295,13 +338,12 @@ export function getDayChangeMarkers(data: ChartRow[], periodKey: string): string
 
   for (const item of data) {
     const bucket = item.bucket;
-    const label = item.label;
-    if (typeof bucket !== "string" || typeof label !== "string") {
+    if (typeof bucket !== "string") {
       continue;
     }
     const currentDay = bucket.slice(0, 10);
     if (previousDay && currentDay !== previousDay) {
-      markers.push(label);
+      markers.push(bucket);
     }
     previousDay = currentDay;
   }
