@@ -154,11 +154,11 @@ Pacotes principais:
 ### 1. Clonar o repositorio
 
 ```powershell
-git clone https://github.com/davidpestilli/avipe_paniel.git
-cd avipe_paniel
+git clone https://github.com/davidpestilli/avipe_painel.git
+cd avipe_painel
 ```
 
-Se preferir, renomeie a pasta local para `avipe_painel`.
+Se preferir, renomeie a pasta local conforme sua convencao.
 
 ### 2. Configurar o acesso ao banco
 
