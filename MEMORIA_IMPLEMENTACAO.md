@@ -6,16 +6,17 @@ Criar e evoluir um painel web local, separado do fluxo principal do AVIPE, para:
 
 - consultar os registros da tabela `avipe_pesquisa_endereco`
 - monitorar o servico por indicadores e graficos operacionais
-- oferecer uma interface moderna e unica para Home, Pesquisa e Detalhe
+- oferecer uma interface moderna e unica para Home, Pesquisa, Detalhe e Configuracoes
 
 ## Arquitetura atual
 
-Em 17 de agosto de 2026, o projeto opera assim:
+Em 21 de agosto de 2026, o projeto opera assim:
 
 - backend principal: Django
 - frontend principal: React + Vite + TypeScript + Tailwind
 - camada de graficos: Recharts
 - interface ativa unica servida pelo backend Django
+- suporte a selecao de ambiente `app`, `hml` e `prd`
 
 ## Evolucao resumida
 
@@ -25,7 +26,7 @@ Foram entregues:
 
 - criacao do projeto Django isolado em `avipe_painel`
 - conexao ao banco `avipebd`
-- reaproveitamento do `config.ini` do AVIPE
+- uso de `config.ini` proprio na raiz do projeto
 - suporte a segredos no Azure Key Vault
 - suporte adicional a `config.local.ini` e variavel de ambiente
 - dashboard inicial com totais globais e totais locais
@@ -58,7 +59,7 @@ Os ajustes principais foram:
 - preservacao de `requirements.txt` como fonte das dependencias Python
 - criacao de `preparar_avipe_painel_nova_maquina.bat`
 - reforco do `iniciar_avipe_painel.bat`
-- suporte a `config.ini` local para clone standalone
+- consolidacao do `config.ini` local para clone standalone
 
 ### Fase 4. Transformacao do painel em Watcher AVIPE
 
@@ -109,6 +110,37 @@ Nesta fase foram entregues:
   - prioridade no seletor `Selecionar orgaos`
   - selecao automatica conforme regra de exibicao da grade
 
+### Fase 8. Suporte a multiplos ambientes
+
+Nesta fase foram entregues:
+
+- nova aba `Configuracoes` na navbar principal
+- seletor de ambiente com persistencia local no navegador
+- suporte de backend para alternancia entre `app`, `hml` e `prd`
+- propagacao do ambiente ativo para:
+  - `GET /api/dashboard/`
+  - `GET /api/configuracoes/`
+  - `GET /api/observabilidade/`
+  - `GET /api/pesquisas/`
+  - `GET /api/pesquisas/detalhe/`
+- suporte a secoes dedicadas de configuracao:
+  - `[mysql_avipe]` e `[azure]`
+  - `[mysql_avipe_hml]` e `[azure_hml]`
+  - `[mysql_avipe_prd]` e `[azure_prd]`
+- suporte a overrides de senha por ambiente:
+  - `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD`
+  - `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD_HML`
+  - `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD_PRD`
+- identificacao dos Key Vaults:
+  - `nape-hml-kv`
+  - `nape-prd-kv`
+- identificacao dos hosts MySQL:
+  - `nape-hml-mysql-flex.mysql.database.azure.com`
+  - `nape-prd-mysql-flex.mysql.database.azure.com`
+- identificacao da entidade de servico Azure usada pelo painel:
+  - `app-nape-hml`
+- validacao de que `hml` e `prd` dependem de permissao RBAC da entidade de servico para leitura de segredos nos respectivos Key Vaults
+
 ## Decisoes de arquitetura
 
 ### 1. Backend Django preservado
@@ -124,11 +156,12 @@ O Django continuou central porque:
 
 O React passou a concentrar:
 
-- navegacao entre Home, Pesquisa e Detalhe
+- navegacao entre Home, Pesquisa, Detalhe e Configuracoes
 - estado visual da observabilidade
 - alternancia de modo `linhas` e `barras`
 - alternancia de leitura por `registros` e `processos`
 - filtros e navegacao de consulta
+- selecao do ambiente ativo consumido pelas APIs
 
 ### 3. Contrato de API preservado e ampliado
 
@@ -139,9 +172,10 @@ Foram mantidas:
 - `GET /api/pesquisas/`
 - `GET /api/pesquisas/detalhe/`
 
-Foi adicionada:
+Foram adicionadas:
 
 - `GET /api/observabilidade/`
+- `GET /api/configuracoes/`
 
 ### 4. Legado removido do fluxo ativo
 
@@ -294,7 +328,7 @@ Ficou responsavel por:
 
 - shell React na raiz e em `/home/`
 - endpoints JSON
-- entrega da Home e da Pesquisa
+- entrega da Home, da Pesquisa e de `Configuracoes`
 
 ### `frontend/src/App.tsx`
 
@@ -302,8 +336,17 @@ Concentra:
 
 - layout principal
 - estados dos filtros e modos de graficos
-- navegacao entre Home, Pesquisa e Detalhe
+- navegacao entre Home, Pesquisa, Detalhe e Configuracoes
 - ligacao entre dados e componentes principais
+- persistencia e troca do ambiente ativo
+
+### `frontend/src/components/SettingsPage.tsx`
+
+Concentra:
+
+- seletor do ambiente ativo
+- resumo dos ambientes disponiveis
+- exibicao do host, da base e do Key Vault do ambiente selecionado
 
 ### `frontend/src/components/HomeDashboard.tsx`
 
@@ -328,7 +371,7 @@ Concentra:
 - grafico de processamento x juntada
 - seletor de orgaos
 
-## Validacoes realizadas em 17 de agosto de 2026
+## Validacoes realizadas em 21 de agosto de 2026
 
 Foram validados com sucesso:
 
@@ -336,12 +379,21 @@ Foram validados com sucesso:
 - `python manage.py check`
 - `GET /health/`
 - `GET /api/dashboard/`
+- `GET /api/configuracoes/?ambiente=app`
 - `GET /api/observabilidade/`
 - `GET /api/pesquisas/`
 - abertura da Home em `http://127.0.0.1:8000/home/`
 - abertura da Pesquisa
+- abertura da aba `Configuracoes`
 - tooltip de sanamento no grafico Entrada x Processamento
 - destaque de orgaos com diferenca processado x juntado
+
+Tambem foi validado:
+
+- descoberta dos Key Vaults `nape-hml-kv` e `nape-prd-kv`
+- descoberta dos hosts MySQL de `hml` e `prd` por meio do segredo `db-connection-string`
+- resposta correta do ambiente `app`
+- bloqueio de `hml` e `prd` por falta de permissao da entidade de servico no Key Vault
 
 ## Observacoes finais
 

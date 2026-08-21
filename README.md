@@ -2,7 +2,7 @@
 
 Painel web local para monitoramento operacional e consulta da base `avipebd` usada pelo AVIPE.
 
-Em 17 de agosto de 2026, o sistema opera com este stack:
+Em 21 de agosto de 2026, o sistema opera com este stack:
 
 - backend: Django
 - frontend: React + Vite + TypeScript + Tailwind
@@ -11,11 +11,12 @@ Em 17 de agosto de 2026, o sistema opera com este stack:
 
 ## O que o sistema entrega hoje
 
-- navegacao por navbar entre `Home` e `Pesquisa`
+- navegacao por navbar entre `Home`, `Pesquisa` e `Configuracoes`
 - Home com KPIs globais e painel expansivel da maquina e do usuario local
 - observabilidade do servico por periodo
 - leitura por `registros` ou por `processos`
 - graficos em `linhas` ou `barras`
+- seletor de ambiente para alternancia entre `app`, `hml` e `prd`
 - analises de:
   - envios ao localizador por orgao
   - inclusao no localizador x processamento
@@ -104,11 +105,13 @@ avipe_painel/
 - interface principal alternativa: `http://127.0.0.1:8000/home/`
 - pesquisa: `http://127.0.0.1:8000/pesquisas/`
 - detalhe: `http://127.0.0.1:8000/pesquisas/detalhe/?id=<id>`
+- configuracoes: `http://127.0.0.1:8000/configuracoes/`
 
 ## APIs disponiveis
 
 - `GET /health/`
 - `GET /api/dashboard/`
+- `GET /api/configuracoes/?ambiente=<app|hml|prd>`
 - `GET /api/observabilidade/?periodo=<recorte>`
 - `GET /api/pesquisas/`
 - `GET /api/pesquisas/detalhe/?id=<id>`
@@ -162,10 +165,7 @@ Se preferir, renomeie a pasta local conforme sua convencao.
 
 ### 2. Configurar o acesso ao banco
 
-O painel procura configuracao nesta ordem:
-
-1. `avipe_painel/config.ini`
-2. `../config.ini`
+O painel procura a configuracao em `config.ini` na raiz do proprio projeto.
 
 Voce pode usar `config.ini.example` como base:
 
@@ -183,7 +183,41 @@ Se usar Azure Key Vault:
 ```ini
 [azure]
 key_vault_url = https://seu-vault.vault.azure.net/
+
+[mysql_avipe_hml]
+host = nape-hml-mysql-flex.mysql.database.azure.com
+port = 3306
+database = avipebd
+user = avipe
+password = kv:mysql-avipe-password
+
+[azure_hml]
+key_vault_url = https://nape-hml-kv.vault.azure.net/
+
+[mysql_avipe_prd]
+host = nape-prd-mysql-flex.mysql.database.azure.com
+port = 3306
+database = avipebd
+user = avipe
+password = kv:mysql-avipe-password
+
+[azure_prd]
+key_vault_url = https://nape-prd-kv.vault.azure.net/
 ```
+
+### Convencao de ambientes
+
+O painel usa estas secoes no `config.ini`:
+
+- `app`: `[mysql_avipe]` e `[azure]`
+- `hml`: `[mysql_avipe_hml]` e `[azure_hml]`
+- `prd`: `[mysql_avipe_prd]` e `[azure_prd]`
+
+Na aba `Configuracoes`, a interface passa a usar o ambiente selecionado em:
+
+- `Home`
+- `Pesquisa`
+- `Detalhe`
 
 ### 3. Preparar a maquina
 
@@ -255,6 +289,11 @@ Tambem e possivel usar:
 
 - `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD`
 
+Para ambientes especificos, o painel tambem aceita:
+
+- `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD_HML`
+- `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD_PRD`
+
 ## Arquivos principais
 
 - `pesquisas/services.py`: acesso ao banco e consultas operacionais
@@ -264,6 +303,7 @@ Tambem e possivel usar:
 - `frontend/src/api.ts`: consumo das APIs
 - `frontend/src/types.ts`: contratos do frontend
 - `frontend/src/components/AppShell.tsx`: cabecalho compacto e overlay de carregamento
+- `frontend/src/components/SettingsPage.tsx`: seletor e resumo do ambiente ativo
 - `frontend/src/components/HomeDashboard.tsx`: orquestracao da Home
 - `frontend/src/components/HomeDashboardHeader.tsx`: cabecalho, KPIs e resumo da Home
 - `frontend/src/components/homeDashboardCharts.tsx`: graficos da Home
@@ -291,9 +331,10 @@ Coberto pelo `.gitignore`:
 
 Verifique:
 
-- se existe `config.ini` local ou na pasta pai
+- se existe `config.ini` na raiz do projeto
 - se o acesso ao MySQL `avipebd` esta disponivel
 - se o Key Vault esta acessivel, quando o `config.ini` usa `kv:`
+- se a identidade Azure tem permissao de leitura de segredos nos cofres dos ambientes desejados
 - se as variaveis Azure estao visiveis na sessao atual
 - se `config.local.ini` foi criado corretamente
 
@@ -312,8 +353,12 @@ O fluxo atual foi validado localmente com:
 - `npm run build`
 - `python manage.py check`
 - leitura por `config.ini` local
-- leitura por `config.ini` na pasta pai
+- leitura da API `GET /api/configuracoes/` para `app`
 - carregamento da Home e da Pesquisa
 - carregamento da API de observabilidade
+
+Observacao:
+
+- `hml` e `prd` dependem de permissao Azure da entidade de servico usada pelo painel para leitura dos segredos nos respectivos Key Vaults
 
 Com isso, o repositorio permanece apto para instalacao limpa em maquina nova e para evolucao do Watcher AVIPE no stack atual.
