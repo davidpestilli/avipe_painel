@@ -61,6 +61,23 @@ Os ajustes principais foram:
 - reforco do `iniciar_avipe_painel.bat`
 - consolidacao do `config.ini` local para clone standalone
 
+### Fase 3.1. Instalacao assistida, logging e suporte a rede interna
+
+Nesta extensao da preparacao para maquina nova foram entregues:
+
+- log com timestamp em `logs\` para cada execucao de `preparar_avipe_painel_nova_maquina.bat`
+- captura da saida tecnica das etapas de versao, `pip`, `npm`, build e migracoes
+- mensagens de apoio para falhas tipicas de rede interna:
+  - proxy
+  - DNS
+  - certificado
+  - bloqueio de download
+  - indisponibilidade de repositorio externo
+- copia automatica de `config.ini.example` para `config.ini` quando o arquivo nao existe
+- orientacao explicita ao usuario sobre os dados minimos exigidos em `config.ini`
+- validacao basica da presenca das variaveis `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` e `AZURE_CLIENT_SECRET` quando houver `kv:` no `config.ini`
+- criacao do arquivo `PROMPT_INSTALACAO_AGENTE_IA.md` para guiar um agente de IA durante a instalacao e o diagnostico
+
 ### Fase 4. Transformacao do painel em Watcher AVIPE
 
 Nesta fase, o painel deixou de ser apenas uma tela de consulta e passou a ter:
@@ -265,6 +282,7 @@ avipe_painel/
 |-- static/
 |-- templates/
 |-- iniciar_avipe_painel.bat
+|-- PROMPT_INSTALACAO_AGENTE_IA.md
 |-- preparar_avipe_painel_nova_maquina.bat
 |-- manage.py
 |-- requirements.txt
@@ -292,6 +310,31 @@ Mantem o stack da interface:
 - Vite
 - TypeScript
 - Tailwind
+
+### `preparar_avipe_painel_nova_maquina.bat`
+
+Hoje concentra:
+
+- verificacao de `python`, `node` e `npm`
+- criacao de `.venv`
+- instalacao de dependencias Python
+- instalacao de dependencias do frontend
+- build do frontend
+- migracoes do Django
+- `manage.py check`
+- escrita de log detalhado em `logs\`
+- orientacao operacional sobre `config.ini`
+- alerta sobre dependencia de Azure Key Vault
+
+### `PROMPT_INSTALACAO_AGENTE_IA.md`
+
+Concentra:
+
+- roteiro completo para um agente de IA executar a instalacao
+- formato padronizado de acompanhamento por etapa
+- classificacao de falhas de rede e dependencias
+- checklist final de prontidao
+- relatorio final tecnico e executivo
 
 ### `pesquisas/analytics.py`
 
@@ -394,10 +437,13 @@ Tambem foi validado:
 - descoberta dos hosts MySQL de `hml` e `prd` por meio do segredo `db-connection-string`
 - resposta correta do ambiente `app`
 - bloqueio de `hml` e `prd` por falta de permissao da entidade de servico no Key Vault
+- geracao do prompt `PROMPT_INSTALACAO_AGENTE_IA.md` para instalacao assistida
+- inicializacao do novo fluxo de log do instalador em `logs\`
 
 ## Observacoes finais
 
 - o projeto esta pronto para instalacao limpa em maquina nova
+- a instalacao em maquina do tribunal passa a ter trilha de log e roteiro para agente de IA
 - a consulta operacional e a observabilidade coexistem na mesma interface
 - a logica de banco e de credenciais segue centralizada no backend Python
 - a manutencao agora esta mais concentrada em componentes menores e mais legiveis

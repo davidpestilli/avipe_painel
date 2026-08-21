@@ -92,6 +92,7 @@ avipe_painel/
 |-- config.ini.example
 |-- config.local.ini.example
 |-- iniciar_avipe_painel.bat
+|-- PROMPT_INSTALACAO_AGENTE_IA.md
 |-- preparar_avipe_painel_nova_maquina.bat
 |-- manage.py
 |-- MEMORIA_IMPLEMENTACAO.md
@@ -233,6 +234,38 @@ Esse atalho executa:
 - `npm install` em `frontend`
 - `npm run build` do frontend
 - `manage.py migrate`
+- `manage.py check`
+
+Agora o instalador tambem:
+
+- cria log com timestamp em `logs\`
+- registra a saida tecnica das etapas de Python, Node, `pip`, `npm`, build e migracoes
+- destaca falhas que podem estar ligadas a rede interna, proxy, DNS ou certificados
+- cria `config.ini` a partir de `config.ini.example` quando necessario
+- orienta os dados minimos que o usuario precisa preencher no `config.ini`
+- alerta quando houver dependencia de Azure Key Vault sem variaveis de ambiente completas
+
+### 3.1. Instalacao assistida por agente de IA
+
+Se a instalacao em outra maquina for conduzida por um agente de IA, use o prompt versionado em:
+
+- `PROMPT_INSTALACAO_AGENTE_IA.md`
+
+Esse arquivo instrui o agente a:
+
+- validar pre-requisitos da maquina
+- executar `preparar_avipe_painel_nova_maquina.bat`
+- acompanhar e resumir o log gerado em `logs\`
+- identificar falhas de download e de rede tipicas do ambiente interno do tribunal
+- conferir `config.ini`, `config.local.ini` e variaveis Azure
+- diferenciar aplicacao instalada de aplicacao realmente operacional
+
+Fluxo recomendado:
+
+1. clonar ou copiar o repositorio para a maquina alvo
+2. pedir para a IA ler `PROMPT_INSTALACAO_AGENTE_IA.md`
+3. pedir para a IA executar o fluxo de instalacao a partir desse arquivo
+4. usar o relatorio final da IA para resolver pendencias de rede, credenciais ou configuracao
 
 ### 4. Iniciar o sistema
 
@@ -310,7 +343,8 @@ Para ambientes especificos, o painel tambem aceita:
 - `frontend/src/components/homeDashboardShared.tsx`: infraestrutura compartilhada da Home
 - `frontend/package.json`: dependencias e scripts do frontend
 - `iniciar_avipe_painel.bat`: inicializacao rapida
-- `preparar_avipe_painel_nova_maquina.bat`: bootstrap de maquina nova
+- `preparar_avipe_painel_nova_maquina.bat`: bootstrap de maquina nova com log detalhado em `logs\`
+- `PROMPT_INSTALACAO_AGENTE_IA.md`: roteiro operacional para agente de IA executar e acompanhar a instalacao
 - `MEMORIA_IMPLEMENTACAO.md`: memoria tecnica do projeto
 
 ## O que nao deve ser versionado
@@ -338,6 +372,18 @@ Verifique:
 - se as variaveis Azure estao visiveis na sessao atual
 - se `config.local.ini` foi criado corretamente
 
+### O instalador falhou em outra maquina
+
+Verifique:
+
+- o arquivo de log mais recente em `logs\`
+- em qual etapa ocorreu a falha: `.venv`, `pip`, `requirements.txt`, `npm install`, build, migracoes ou `manage.py check`
+- se a falha indica bloqueio de rede, proxy, DNS, certificado ou indisponibilidade externa
+- se `config.ini` foi criado e ainda contem valores de exemplo
+- se a instalacao depende de Azure Key Vault sem `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` e `AZURE_CLIENT_SECRET`
+
+Quando a instalacao for acompanhada por IA, use `PROMPT_INSTALACAO_AGENTE_IA.md` para que o agente leia o log e produza um relatorio de pendencias.
+
 ### O frontend foi alterado e a tela nao mudou
 
 ```powershell
@@ -352,6 +398,7 @@ O fluxo atual foi validado localmente com:
 - `npm install`
 - `npm run build`
 - `python manage.py check`
+- inicializacao do `preparar_avipe_painel_nova_maquina.bat` com criacao de log em `logs\`
 - leitura por `config.ini` local
 - leitura da API `GET /api/configuracoes/` para `app`
 - carregamento da Home e da Pesquisa
