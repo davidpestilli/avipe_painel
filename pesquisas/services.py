@@ -11,8 +11,12 @@ from typing import Any
 
 import mysql.connector
 from django.conf import settings
+from django.http import HttpRequest
 
 from .secrets import SegredoError, resolver_segredos
+
+AMBIENTE_PADRAO = "app"
+AMBIENTES_CONHECIDOS = ("app", "hml", "prd")
 
 
 class PainelConfigError(Exception):
@@ -37,25 +41,33 @@ class Paginacao:
         return self.pagina < self.total_paginas
 
 
-def carregar_config_avipe() -> configparser.ConfigParser:
-    base_dir = Path(settings.BASE_DIR)
-    config_path = _resolver_config_path(base_dir)
-    override_path = Path(settings.BASE_DIR) / "config.local.ini"
+def normalizar_ambiente(ambiente: str | None) -> str:
+    valor = (ambiente or AMBIENTE_PADRAO).strip().lower()
+    return valor or AMBIENTE_PADRAO
 
-    config = configparser.ConfigParser(interpolation=None)
-    config.read(config_path, encoding="utf-8")
-    if override_path.exists():
-        config.read(override_path, encoding="utf-8")
 
-    if not config.has_section("mysql_avipe"):
-        raise PainelConfigError("Secao [mysql_avipe] nao encontrada no config.ini do AVIPE.")
+def resolver_ambiente_request(request: HttpRequest) -> str:
+    return normalizar_ambiente(request.GET.get("ambiente"))
 
-    _aplicar_overrides_de_ambiente(config)
+
+def carregar_config_avipe(ambiente: str = AMBIENTE_PADRAO) -> configparser.ConfigParser:
+    config = _carregar_config_base()
+    ambiente_normalizado = normalizar_ambiente(ambiente)
+    secao_mysql = _resolver_secao_mysql(config, ambiente_normalizado)
+
+    if not secao_mysql:
+        raise PainelConfigError(
+            f"Configuracao do ambiente '{ambiente_normalizado}' nao encontrada. "
+            "Defina a secao correspondente no config.ini."
+        )
+
+    config_ambiente = _extrair_config_ambiente(config, ambiente_normalizado, secao_mysql)
+    _aplicar_overrides_de_ambiente(config_ambiente, ambiente_normalizado)
 
     try:
-        resolver_segredos(config)
+        resolver_segredos(config_ambiente)
     except SegredoError as exc:
-        valor_senha = config.get("mysql_avipe", "password", fallback="").strip()
+        valor_senha = config_ambiente.get("mysql_avipe", "password", fallback="").strip()
         if valor_senha.startswith("kv:"):
             raise PainelConfigError(
                 "Nao foi possivel obter a senha do banco no Azure Key Vault. "
@@ -65,32 +77,119 @@ def carregar_config_avipe() -> configparser.ConfigParser:
             ) from exc
         raise PainelConfigError(str(exc)) from exc
 
+    return config_ambiente
+
+
+def listar_ambientes_disponiveis() -> list[dict[str, str]]:
+    config = _carregar_config_base()
+    ambientes: list[dict[str, str]] = []
+
+    for ambiente in AMBIENTES_CONHECIDOS:
+        secao_mysql = _resolver_secao_mysql(config, ambiente)
+        if not secao_mysql:
+            continue
+        secao_azure = _resolver_secao_azure(config, ambiente)
+        ambientes.append(
+            {
+                "id": ambiente,
+                "rotulo": ambiente.upper(),
+                "mysql_section": secao_mysql,
+                "azure_section": secao_azure or "",
+                "key_vault_url": config.get(secao_azure, "key_vault_url", fallback="").strip() if secao_azure else "",
+            }
+        )
+
+    if ambientes:
+        return ambientes
+
+    return [
+        {
+            "id": AMBIENTE_PADRAO,
+            "rotulo": AMBIENTE_PADRAO.upper(),
+            "mysql_section": "mysql_avipe",
+            "azure_section": "azure",
+            "key_vault_url": "",
+        }
+    ]
+
+
+def _carregar_config_base() -> configparser.ConfigParser:
+    base_dir = Path(settings.BASE_DIR)
+    config_path = _resolver_config_path(base_dir)
+    override_path = Path(settings.BASE_DIR) / "config.local.ini"
+
+    config = configparser.ConfigParser(interpolation=None)
+    config.read(config_path, encoding="utf-8")
+    if override_path.exists():
+        config.read(override_path, encoding="utf-8")
     return config
 
 
 def _resolver_config_path(base_dir: Path) -> Path:
     local_config = base_dir / "config.ini"
-    parent_config = base_dir.parent / "config.ini"
 
     if local_config.exists():
         return local_config
-    if parent_config.exists():
-        return parent_config
 
     raise PainelConfigError(
         "Arquivo de configuracao nao encontrado. "
-        "Crie 'config.ini' dentro do avipe_painel ou mantenha '../config.ini' na pasta pai."
+        "Crie 'config.ini' na raiz do projeto."
     )
 
 
-def _aplicar_overrides_de_ambiente(config: configparser.ConfigParser) -> None:
-    senha = os.getenv("AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD", "").strip()
+def _resolver_secao_mysql(config: configparser.ConfigParser, ambiente: str) -> str | None:
+    candidatos = [f"mysql_avipe_{ambiente}"]
+    if ambiente == AMBIENTE_PADRAO:
+        candidatos.append("mysql_avipe")
+
+    for secao in candidatos:
+        if config.has_section(secao):
+            return secao
+    return None
+
+
+def _resolver_secao_azure(config: configparser.ConfigParser, ambiente: str) -> str | None:
+    candidatos = [f"azure_{ambiente}"]
+    if ambiente == AMBIENTE_PADRAO:
+        candidatos.append("azure")
+
+    for secao in candidatos:
+        if config.has_section(secao):
+            return secao
+    return None
+
+
+def _extrair_config_ambiente(
+    config: configparser.ConfigParser,
+    ambiente: str,
+    secao_mysql: str,
+) -> configparser.ConfigParser:
+    config_ambiente = configparser.ConfigParser(interpolation=None)
+    config_ambiente["mysql_avipe"] = dict(config.items(secao_mysql, raw=True))
+
+    secao_azure = _resolver_secao_azure(config, ambiente)
+    if secao_azure:
+        config_ambiente["azure"] = dict(config.items(secao_azure, raw=True))
+
+    return config_ambiente
+
+
+def _aplicar_overrides_de_ambiente(config: configparser.ConfigParser, ambiente: str) -> None:
+    chaves = [
+        f"AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD_{ambiente.upper()}",
+        "AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD",
+    ]
+    senha = ""
+    for chave in chaves:
+        senha = os.getenv(chave, "").strip()
+        if senha:
+            break
     if senha:
         config.set("mysql_avipe", "password", senha)
 
 
-def abrir_conexao():
-    config = carregar_config_avipe()
+def abrir_conexao(ambiente: str = AMBIENTE_PADRAO):
+    config = carregar_config_avipe(ambiente)
     return mysql.connector.connect(
         host=config.get("mysql_avipe", "host"),
         port=config.getint("mysql_avipe", "port"),
@@ -108,20 +207,26 @@ def obter_identidade_execucao() -> dict[str, str]:
     }
 
 
-def obter_info_banco() -> dict[str, Any]:
-    config = carregar_config_avipe()
+def obter_info_banco(ambiente: str = AMBIENTE_PADRAO) -> dict[str, Any]:
+    config = carregar_config_avipe(ambiente)
     identidade = obter_identidade_execucao()
     return {
+        "ambiente": normalizar_ambiente(ambiente),
         "host": config.get("mysql_avipe", "host"),
         "porta": config.getint("mysql_avipe", "port"),
         "database": config.get("mysql_avipe", "database"),
         "usuario_banco": config.get("mysql_avipe", "user"),
+        "key_vault_url": config.get("azure", "key_vault_url", fallback="").strip(),
         "ip_cliente": identidade["ip_cliente"],
         "usuario_logado": identidade["usuario_logado"],
     }
 
 
-def _executar_metricas(where_sql: str = "", params: tuple[Any, ...] = ()) -> dict[str, Any]:
+def _executar_metricas(
+    where_sql: str = "",
+    params: tuple[Any, ...] = (),
+    ambiente: str = AMBIENTE_PADRAO,
+) -> dict[str, Any]:
     sql = """
         SELECT
             COUNT(*) AS total,
@@ -131,7 +236,7 @@ def _executar_metricas(where_sql: str = "", params: tuple[Any, ...] = ()) -> dic
             MAX(data_insercao) AS ultima_insercao
         FROM avipe_pesquisa_endereco
     """ + where_sql
-    with abrir_conexao() as conn:
+    with abrir_conexao(ambiente) as conn:
         with conn.cursor(dictionary=True) as cursor:
             cursor.execute(sql, params)
             dados = cursor.fetchone() or {}
@@ -144,18 +249,19 @@ def _executar_metricas(where_sql: str = "", params: tuple[Any, ...] = ()) -> dic
     }
 
 
-def buscar_metricas() -> dict[str, Any]:
+def buscar_metricas(ambiente: str = AMBIENTE_PADRAO) -> dict[str, Any]:
     identidade = obter_identidade_execucao()
     return {
-        "globais": _executar_metricas(),
+        "globais": _executar_metricas(ambiente=ambiente),
         "maquina_usuario": _executar_metricas(
             " WHERE ip_cliente = %s AND usuario_logado = %s",
             (identidade["ip_cliente"], identidade["usuario_logado"]),
+            ambiente=ambiente,
         ),
     }
 
 
-def listar_ultimos_registros(limite: int = 10) -> list[dict[str, Any]]:
+def listar_ultimos_registros(limite: int = 10, ambiente: str = AMBIENTE_PADRAO) -> list[dict[str, Any]]:
     sql = """
         SELECT id, nuprocesso, cpf, sig_orgao, ip_cliente, usuario_logado, processado, juntado,
                data_insercao, data_processamento, data_inclusao_localizador
@@ -163,33 +269,33 @@ def listar_ultimos_registros(limite: int = 10) -> list[dict[str, Any]]:
         ORDER BY data_insercao DESC
         LIMIT %s
     """
-    with abrir_conexao() as conn:
+    with abrir_conexao(ambiente) as conn:
         with conn.cursor(dictionary=True) as cursor:
             cursor.execute(sql, (limite,))
             return list(cursor.fetchall())
 
 
-def listar_siglas_orgaos() -> list[str]:
+def listar_siglas_orgaos(ambiente: str = AMBIENTE_PADRAO) -> list[str]:
     sql = """
         SELECT DISTINCT sig_orgao
         FROM avipe_pesquisa_endereco
         WHERE sig_orgao IS NOT NULL AND sig_orgao <> ''
         ORDER BY sig_orgao
     """
-    with abrir_conexao() as conn:
+    with abrir_conexao(ambiente) as conn:
         with conn.cursor() as cursor:
             cursor.execute(sql)
             return [linha[0] for linha in cursor.fetchall()]
 
 
-def listar_usuarios_logados() -> list[str]:
+def listar_usuarios_logados(ambiente: str = AMBIENTE_PADRAO) -> list[str]:
     sql = """
         SELECT DISTINCT usuario_logado
         FROM avipe_pesquisa_endereco
         WHERE usuario_logado IS NOT NULL AND usuario_logado <> ''
         ORDER BY usuario_logado
     """
-    with abrir_conexao() as conn:
+    with abrir_conexao(ambiente) as conn:
         with conn.cursor() as cursor:
             cursor.execute(sql)
             return [linha[0] for linha in cursor.fetchall()]
@@ -199,6 +305,7 @@ def consultar_registros(
     filtros: dict[str, str],
     pagina: int = 1,
     por_pagina: int = 25,
+    ambiente: str = AMBIENTE_PADRAO,
 ) -> Paginacao:
     where = []
     params: list[Any] = []
@@ -266,7 +373,7 @@ def consultar_registros(
         LIMIT %s OFFSET %s
     """
 
-    with abrir_conexao() as conn:
+    with abrir_conexao(ambiente) as conn:
         with conn.cursor(dictionary=True) as cursor:
             cursor.execute(sql_total, params)
             total = cursor.fetchone()["total"]
@@ -286,14 +393,14 @@ def consultar_registros(
     )
 
 
-def buscar_registro_detalhe(registro_id: int) -> dict[str, Any] | None:
+def buscar_registro_detalhe(registro_id: int, ambiente: str = AMBIENTE_PADRAO) -> dict[str, Any] | None:
     sql = """
         SELECT *
         FROM avipe_pesquisa_endereco
         WHERE id = %s
         LIMIT 1
     """
-    with abrir_conexao() as conn:
+    with abrir_conexao(ambiente) as conn:
         with conn.cursor(dictionary=True) as cursor:
             cursor.execute(sql, (registro_id,))
             return cursor.fetchone()

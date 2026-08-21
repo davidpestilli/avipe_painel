@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { fetchDashboard, fetchDetalhe, fetchLista, fetchObservabilidade } from "./api";
+import { fetchConfiguracoes, fetchDashboard, fetchDetalhe, fetchLista, fetchObservabilidade } from "./api";
 import { CompactHeader, LoadingOverlay } from "./components/AppShell";
 import { DetailPage } from "./components/DetailPage";
 import {
@@ -10,10 +10,18 @@ import {
   type MetricScope,
   type StatusLayerMode,
 } from "./components/HomeDashboard";
-import { computeHighlightedOrgans } from "./components/homeDashboardShared";
 import { SearchPage } from "./components/SearchPage";
+import { SettingsPage } from "./components/SettingsPage";
 import { PesquisaViewMode } from "./components/SearchTable";
-import type { DashboardData, DetalheResponse, ListaResponse, ObservabilidadeResponse } from "./types";
+import { computeHighlightedOrgans } from "./components/homeDashboardShared";
+import type {
+  AmbienteDisponivel,
+  ConfiguracoesResponse,
+  DashboardData,
+  DetalheResponse,
+  ListaResponse,
+  ObservabilidadeResponse,
+} from "./types";
 import {
   applyFiltersFromParams,
   buildQueryString,
@@ -58,13 +66,18 @@ const EMPTY_FILTERS: FilterState = {
   juntado: "",
 };
 
+const STORAGE_KEY = "avipe_painel_ambiente";
+
 function App() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [observabilidade, setObservabilidade] = useState<ObservabilidadeResponse | null>(null);
   const [lista, setLista] = useState<ListaResponse | null>(null);
   const [detalhe, setDetalhe] = useState<DetalheResponse | null>(null);
+  const [configuracoes, setConfiguracoes] = useState<ConfiguracoesResponse | null>(null);
+  const [ambientes, setAmbientes] = useState<AmbienteDisponivel[]>([]);
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [currentView, setCurrentView] = useState<RouteView>("home");
+  const [selectedAmbiente, setSelectedAmbiente] = useState("app");
   const [loading, setLoading] = useState(true);
   const [loadingHome, setLoadingHome] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
@@ -96,9 +109,9 @@ function App() {
 
   useEffect(() => {
     if (currentView === "home") {
-      void loadObservabilidade(periodo);
+      void loadObservabilidade(periodo, selectedAmbiente);
     }
-  }, [periodo, currentView]);
+  }, [periodo, currentView, selectedAmbiente]);
 
   useEffect(() => {
     if (currentView !== "home" || !observabilidade) {
@@ -110,37 +123,45 @@ function App() {
   async function bootstrap() {
     setLoading(true);
     try {
-      await Promise.all([loadDashboard(), syncFromLocation(false)]);
+      const ambienteInicial = localStorage.getItem(STORAGE_KEY) || "app";
+      setSelectedAmbiente(ambienteInicial);
+      await Promise.all([loadConfiguracoes(ambienteInicial), loadDashboard(ambienteInicial), syncFromLocation(false, ambienteInicial)]);
     } finally {
       setLoading(false);
     }
   }
 
-  async function loadDashboard() {
-    const payload = await fetchDashboard();
+  async function loadConfiguracoes(ambiente: string) {
+    const payload = await fetchConfiguracoes(ambiente);
+    setConfiguracoes(payload);
+    setAmbientes(payload.ambientes);
+  }
+
+  async function loadDashboard(ambiente: string) {
+    const payload = await fetchDashboard(ambiente);
     setDashboard(payload);
   }
 
-  async function loadObservabilidade(nextPeriodo: string) {
+  async function loadObservabilidade(nextPeriodo: string, ambiente: string) {
     setLoadingHome(true);
     try {
-      const payload = await fetchObservabilidade(nextPeriodo);
+      const payload = await fetchObservabilidade(nextPeriodo, ambiente);
       setObservabilidade(payload);
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Falha ao carregar os gráficos da Home.");
+      setError(fetchError instanceof Error ? fetchError.message : "Falha ao carregar os graficos da Home.");
     } finally {
       setLoadingHome(false);
     }
   }
 
-  async function syncFromLocation(updateHistory: boolean) {
+  async function syncFromLocation(updateHistory: boolean, ambiente = selectedAmbiente) {
     const currentUrl = new URL(window.location.href);
     const view = getViewFromPath(currentUrl.pathname);
 
     setCurrentView(view);
     setError("");
 
-    if (view === "home") {
+    if (view === "home" || view === "configuracoes") {
       setDetalhe(null);
       return;
     }
@@ -148,7 +169,7 @@ function App() {
     if (view === "lista") {
       const nextFilters = applyFiltersFromParams(currentUrl.searchParams, FILTER_KEYS, EMPTY_FILTERS);
       setFilters(nextFilters);
-      await loadLista(currentUrl.searchParams.toString(), updateHistory ? currentUrl.pathname : undefined);
+      await loadLista(currentUrl.searchParams.toString(), ambiente, updateHistory ? currentUrl.pathname : undefined);
       return;
     }
 
@@ -156,17 +177,17 @@ function App() {
     setReturnQuery(currentUrl.searchParams.get("next") ?? "");
 
     if (id) {
-      await loadDetalhe(id);
+      await loadDetalhe(id, ambiente);
       return;
     }
 
     setDetalhe({ erro: "Informe o id do registro para abrir o detalhe." });
   }
 
-  async function loadLista(queryString = "", pathOverride?: string) {
+  async function loadLista(queryString = "", ambiente: string, pathOverride?: string) {
     setLoadingList(true);
     try {
-      const payload = await fetchLista(queryString);
+      const payload = await fetchLista(queryString, ambiente);
       setLista(payload);
       setDetalhe(null);
 
@@ -180,10 +201,10 @@ function App() {
     }
   }
 
-  async function loadDetalhe(id: string) {
+  async function loadDetalhe(id: string, ambiente: string) {
     setLoadingDetail(true);
     try {
-      const payload = await fetchDetalhe(id);
+      const payload = await fetchDetalhe(id, ambiente);
       setDetalhe(payload);
     } catch (fetchError) {
       setDetalhe({ erro: fetchError instanceof Error ? fetchError.message : "Falha ao carregar o detalhe." });
@@ -199,14 +220,21 @@ function App() {
     setError("");
   }
 
-  async function handleGoToLista(page = 1, overrideFilters?: FilterState) {
+  async function handleGoToLista(page = 1, overrideFilters?: FilterState, ambiente = selectedAmbiente) {
     const nextFilters = overrideFilters ?? filters;
     const queryString = buildQueryString(nextFilters, FILTER_KEYS, page);
 
     navigateTo("/pesquisas/", queryString);
     setCurrentView("lista");
     setFilters(nextFilters);
-    await loadLista(queryString);
+    await loadLista(queryString, ambiente);
+  }
+
+  function handleGoToConfiguracoes() {
+    navigateTo("/configuracoes/");
+    setCurrentView("configuracoes");
+    setDetalhe(null);
+    setError("");
   }
 
   async function handleOpenDetail(id: number | string) {
@@ -220,7 +248,7 @@ function App() {
     navigateTo("/pesquisas/detalhe/", detailQuery.toString());
     setCurrentView("detalhe");
     setReturnQuery(query);
-    await loadDetalhe(String(id));
+    await loadDetalhe(String(id), selectedAmbiente);
   }
 
   async function handleFilterSubmit(event: FormEvent) {
@@ -232,7 +260,22 @@ function App() {
     setError("");
     setLoading(true);
     try {
-      await Promise.all([loadDashboard(), syncFromLocation(false)]);
+      await Promise.all([loadConfiguracoes(selectedAmbiente), loadDashboard(selectedAmbiente), syncFromLocation(false, selectedAmbiente)]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAmbienteChange(ambiente: string) {
+    setSelectedAmbiente(ambiente);
+    localStorage.setItem(STORAGE_KEY, ambiente);
+    setObservabilidade(null);
+    setLista(null);
+    setDetalhe(null);
+    setError("");
+    setLoading(true);
+    try {
+      await Promise.all([loadConfiguracoes(ambiente), loadDashboard(ambiente), syncFromLocation(false, ambiente)]);
     } finally {
       setLoading(false);
     }
@@ -247,73 +290,85 @@ function App() {
           currentView={currentView}
           onNavigateHome={handleGoToHome}
           onNavigatePesquisa={() => void handleGoToLista()}
+          onNavigateConfiguracoes={handleGoToConfiguracoes}
           onRefresh={() => void handleRefreshCurrentView()}
         />
 
         <div className="space-y-0 pt-1">
-        {error ? (
-          <section className="mb-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</section>
-        ) : null}
+          {error ? (
+            <section className="mb-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</section>
+          ) : null}
 
-        {loading ? <LoadingOverlay /> : null}
+          {loading ? <LoadingOverlay /> : null}
 
-        {!loading && currentView === "home" && dashboard ? (
-          <HomeView
-            observabilidade={observabilidade}
-            loadingHome={loadingHome}
-            periodo={periodo}
-            onPeriodoChange={setPeriodo}
-            activeHomeTab={activeHomeTab}
-            onActiveHomeTabChange={setActiveHomeTab}
-            fluxoChartMode={fluxoChartMode}
-            onFluxoChartModeChange={setFluxoChartMode}
-            statusChartMode={statusChartMode}
-            onStatusChartModeChange={setStatusChartMode}
-            metricScope={metricScope}
-            onMetricScopeChange={setMetricScope}
-            statusLayerMode={statusLayerMode}
-            onStatusLayerModeChange={setStatusLayerMode}
-            fluxoBreakdownMode={fluxoBreakdownMode}
-            onFluxoBreakdownModeChange={setFluxoBreakdownMode}
-            selectedOrgans={selectedOrgans}
-            onSelectedOrgansChange={setSelectedOrgans}
-          />
-        ) : null}
+          {!loading && currentView === "home" && dashboard ? (
+            <HomeView
+              observabilidade={observabilidade}
+              loadingHome={loadingHome}
+              periodo={periodo}
+              onPeriodoChange={setPeriodo}
+              activeHomeTab={activeHomeTab}
+              onActiveHomeTabChange={setActiveHomeTab}
+              fluxoChartMode={fluxoChartMode}
+              onFluxoChartModeChange={setFluxoChartMode}
+              statusChartMode={statusChartMode}
+              onStatusChartModeChange={setStatusChartMode}
+              metricScope={metricScope}
+              onMetricScopeChange={setMetricScope}
+              statusLayerMode={statusLayerMode}
+              onStatusLayerModeChange={setStatusLayerMode}
+              fluxoBreakdownMode={fluxoBreakdownMode}
+              onFluxoBreakdownModeChange={setFluxoBreakdownMode}
+              selectedOrgans={selectedOrgans}
+              onSelectedOrgansChange={setSelectedOrgans}
+            />
+          ) : null}
 
-        {!loading && currentView === "lista" ? (
-          <SearchPage
-            lista={lista}
-            filters={filters}
-            setFilters={setFilters}
-            loadingList={loadingList}
-            showPeriodFilters={showPeriodFilters}
-            setShowPeriodFilters={setShowPeriodFilters}
-            pesquisaViewMode={pesquisaViewMode}
-            setPesquisaViewMode={setPesquisaViewMode}
-            expandedProcesses={expandedProcesses}
-            setExpandedProcesses={setExpandedProcesses}
-            onSubmit={handleFilterSubmit}
-            onOpenDetail={handleOpenDetail}
-            onPreviousPage={() => handleGoToLista((lista?.paginacao.pagina ?? 2) - 1)}
-            onNextPage={() => handleGoToLista((lista?.paginacao.pagina ?? 0) + 1)}
-            formatText={formatText}
-            formatDate={formatDate}
-            formatBoolean={formatBoolean}
-          />
-        ) : null}
+          {!loading && currentView === "lista" ? (
+            <SearchPage
+              lista={lista}
+              filters={filters}
+              setFilters={setFilters}
+              loadingList={loadingList}
+              showPeriodFilters={showPeriodFilters}
+              setShowPeriodFilters={setShowPeriodFilters}
+              pesquisaViewMode={pesquisaViewMode}
+              setPesquisaViewMode={setPesquisaViewMode}
+              expandedProcesses={expandedProcesses}
+              setExpandedProcesses={setExpandedProcesses}
+              onSubmit={handleFilterSubmit}
+              onOpenDetail={handleOpenDetail}
+              onPreviousPage={() => handleGoToLista((lista?.paginacao.pagina ?? 2) - 1)}
+              onNextPage={() => handleGoToLista((lista?.paginacao.pagina ?? 0) + 1)}
+              formatText={formatText}
+              formatDate={formatDate}
+              formatBoolean={formatBoolean}
+            />
+          ) : null}
 
-        {!loading && currentView === "detalhe" ? (
-          <DetailPage
-            detalhe={detalhe}
-            detalhesRegistro={detalhesRegistro}
-            loadingDetail={loadingDetail}
-            onBackToSearch={() => handleGoToLista(1, applyFiltersFromParams(new URLSearchParams(returnQuery), FILTER_KEYS, EMPTY_FILTERS))}
-            onBackToHome={handleGoToHome}
-            formatText={formatText}
-            formatDate={formatDate}
-            formatBoolean={formatBoolean}
-          />
-        ) : null}
+          {!loading && currentView === "detalhe" ? (
+            <DetailPage
+              detalhe={detalhe}
+              detalhesRegistro={detalhesRegistro}
+              loadingDetail={loadingDetail}
+              onBackToSearch={() =>
+                handleGoToLista(1, applyFiltersFromParams(new URLSearchParams(returnQuery), FILTER_KEYS, EMPTY_FILTERS))
+              }
+              onBackToHome={handleGoToHome}
+              formatText={formatText}
+              formatDate={formatDate}
+              formatBoolean={formatBoolean}
+            />
+          ) : null}
+
+          {!loading && currentView === "configuracoes" ? (
+            <SettingsPage
+              ambientes={ambientes}
+              ambienteAtivo={selectedAmbiente}
+              infoBanco={configuracoes?.info_banco ?? dashboard?.info_banco ?? null}
+              onAmbienteChange={(value) => void handleAmbienteChange(value)}
+            />
+          ) : null}
         </div>
       </div>
     </div>

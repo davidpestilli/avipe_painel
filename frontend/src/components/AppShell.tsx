@@ -4,11 +4,13 @@ export function CompactHeader({
   currentView,
   onNavigateHome,
   onNavigatePesquisa,
+  onNavigateConfiguracoes,
   onRefresh,
 }: {
-  currentView: "home" | "lista" | "detalhe";
+  currentView: "home" | "lista" | "detalhe" | "configuracoes";
   onNavigateHome: () => Promise<void>;
   onNavigatePesquisa: () => void;
+  onNavigateConfiguracoes: () => void;
   onRefresh: () => void;
 }) {
   return (
@@ -27,6 +29,7 @@ export function CompactHeader({
           <nav className="relative flex flex-wrap items-center gap-2 rounded-2xl border border-slate-700/80 bg-slate-950/55 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
             <NavButton label="Home" active={currentView === "home"} onClick={() => void onNavigateHome()} />
             <NavButton label="Pesquisa" active={currentView === "lista" || currentView === "detalhe"} onClick={onNavigatePesquisa} />
+            <NavButton label="Configuracoes" active={currentView === "configuracoes"} onClick={onNavigateConfiguracoes} />
             <IconButton label="Recarregar" onClick={onRefresh}>
               <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M16.5 10a6.5 6.5 0 1 1-1.4-4" strokeLinecap="round" strokeLinejoin="round" />

@@ -22,18 +22,12 @@ if not exist ".venv\Scripts\python.exe" (
 if exist "config.ini" (
     echo [OK] Encontrado config.ini local.
 ) else (
-    if exist "..\config.ini" (
-        echo [OK] Encontrado config.ini na pasta pai.
-    ) else (
-        echo [ERRO] Nenhum arquivo de configuracao foi encontrado.
-        echo Use uma destas opcoes:
-        echo   1. criar "config.ini" dentro de avipe_painel
-        echo   2. manter "..\config.ini" na pasta pai
-        echo Veja tambem "config.ini.example".
-        echo.
-        pause
-        exit /b 1
-    )
+    echo [ERRO] Nenhum arquivo de configuracao foi encontrado.
+    echo Crie "config.ini" na raiz do projeto.
+    echo Veja tambem "config.ini.example".
+    echo.
+    pause
+    exit /b 1
 )
 
 if not exist "frontend\dist\index.html" (

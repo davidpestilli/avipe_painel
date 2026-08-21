@@ -16,10 +16,12 @@ from .services import (
     buscar_metricas,
     buscar_registro_detalhe,
     consultar_registros,
+    listar_ambientes_disponiveis,
     listar_siglas_orgaos,
     listar_usuarios_logados,
     listar_ultimos_registros,
     obter_info_banco,
+    resolver_ambiente_request,
 )
 
 _UTC = ZoneInfo("UTC")
@@ -75,16 +77,17 @@ def _serializar_registro(registro: dict[str, Any]) -> dict[str, Any]:
 
 
 def api_dashboard(request: HttpRequest) -> JsonResponse:
+    ambiente = resolver_ambiente_request(request)
     try:
         return JsonResponse(
             {
-                "metricas": buscar_metricas(),
-                "info_banco": obter_info_banco(),
+                "metricas": buscar_metricas(ambiente),
+                "info_banco": obter_info_banco(ambiente),
                 "ultimos_registros": [
                     _serializar_registro(item)
-                    for item in listar_ultimos_registros()
+                    for item in listar_ultimos_registros(ambiente=ambiente)
                 ],
-                "siglas_orgaos": listar_siglas_orgaos(),
+                "siglas_orgaos": listar_siglas_orgaos(ambiente),
             }
         )
     except Exception as exc:  # pragma: no cover
@@ -93,13 +96,29 @@ def api_dashboard(request: HttpRequest) -> JsonResponse:
 
 def api_observabilidade(request: HttpRequest) -> JsonResponse:
     periodo = request.GET.get("periodo", "today")
+    ambiente = resolver_ambiente_request(request)
     try:
-        return JsonResponse(buscar_observabilidade(periodo))
+        return JsonResponse(buscar_observabilidade(periodo, ambiente))
+    except Exception as exc:  # pragma: no cover
+        return JsonResponse({"erro": str(exc)}, status=500)
+
+
+def api_configuracoes(request: HttpRequest) -> JsonResponse:
+    ambiente = resolver_ambiente_request(request)
+    try:
+        return JsonResponse(
+            {
+                "ambiente_ativo": ambiente,
+                "ambientes": listar_ambientes_disponiveis(),
+                "info_banco": obter_info_banco(ambiente),
+            }
+        )
     except Exception as exc:  # pragma: no cover
         return JsonResponse({"erro": str(exc)}, status=500)
 
 
 def api_lista_pesquisas(request: HttpRequest) -> JsonResponse:
+    ambiente = resolver_ambiente_request(request)
     filtros = {
         "nuprocesso": request.GET.get("nuprocesso", ""),
         "cpf": request.GET.get("cpf", ""),
@@ -117,14 +136,15 @@ def api_lista_pesquisas(request: HttpRequest) -> JsonResponse:
     pagina = max(1, int(request.GET.get("pagina", "1") or "1"))
     try:
         paginacao = _normalizar_paginacao(
-            consultar_registros(filtros=filtros, pagina=pagina)
+            consultar_registros(filtros=filtros, pagina=pagina, ambiente=ambiente)
         )
         query_base = {chave: valor for chave, valor in filtros.items() if valor}
         return JsonResponse(
             {
+                "ambiente_ativo": ambiente,
                 "filtros": filtros,
-                "siglas_orgaos": listar_siglas_orgaos(),
-                "usuarios_logados": listar_usuarios_logados(),
+                "siglas_orgaos": listar_siglas_orgaos(ambiente),
+                "usuarios_logados": listar_usuarios_logados(ambiente),
                 "paginacao": {
                     "itens": [_serializar_registro(item) for item in paginacao.itens],
                     "pagina": paginacao.pagina,
@@ -144,19 +164,20 @@ def api_lista_pesquisas(request: HttpRequest) -> JsonResponse:
 
 
 def api_detalhe_pesquisa(request: HttpRequest) -> JsonResponse:
+    ambiente = resolver_ambiente_request(request)
     registro_id = request.GET.get("id", "")
     if not registro_id:
         return JsonResponse({"erro": "Informe o id do registro para abrir o detalhe."}, status=400)
 
     try:
-        registro = buscar_registro_detalhe(int(registro_id))
+        registro = buscar_registro_detalhe(int(registro_id), ambiente)
     except Exception as exc:  # pragma: no cover
         return JsonResponse({"erro": str(exc)}, status=500)
 
     if not registro:
         return JsonResponse({"erro": "Registro nao encontrado com os parametros informados."}, status=404)
 
-    return JsonResponse({"registro": _serializar_registro(registro)})
+    return JsonResponse({"ambiente_ativo": ambiente, "registro": _serializar_registro(registro)})
 
 
 def _normalizar_paginacao(paginacao):

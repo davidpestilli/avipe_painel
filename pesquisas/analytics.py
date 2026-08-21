@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from .services import abrir_conexao
+from .services import AMBIENTE_PADRAO, abrir_conexao
 
 _UTC = ZoneInfo("UTC")
 _SAO_PAULO = ZoneInfo("America/Sao_Paulo")
@@ -324,14 +324,14 @@ def _calcular_sanamento_fluxo(linhas: list[dict[str, Any]], periodo: PeriodWindo
     return sanamento_por_bucket
 
 
-def buscar_observabilidade(period_key: str) -> dict[str, Any]:
+def buscar_observabilidade(period_key: str, ambiente: str = AMBIENTE_PADRAO) -> dict[str, Any]:
     periodo = construir_periodo(period_key)
     sql = """
         SELECT nuprocesso, sig_orgao, data_inclusao_localizador, data_processamento, processado, juntado
         FROM avipe_pesquisa_endereco
     """
 
-    with abrir_conexao() as conn:
+    with abrir_conexao(ambiente) as conn:
         with conn.cursor(dictionary=True) as cursor:
             cursor.execute(sql)
             linhas = list(cursor.fetchall())

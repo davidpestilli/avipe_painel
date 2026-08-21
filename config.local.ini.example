@@ -1,2 +1,8 @@
 [mysql_avipe]
 password = coloque_a_senha_real_aqui
+
+[mysql_avipe_hml]
+password = coloque_a_senha_hml_aqui
+
+[mysql_avipe_prd]
+password = coloque_a_senha_prd_aqui

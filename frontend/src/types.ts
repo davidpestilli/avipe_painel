@@ -12,14 +12,31 @@ export interface DashboardData {
     maquina_usuario: DashboardMetricSet;
   };
   info_banco: {
+    ambiente: string;
     host: string;
     porta: number;
     database: string;
     usuario_banco: string;
+    key_vault_url: string;
     ip_cliente: string;
     usuario_logado: string;
   };
   siglas_orgaos: string[];
+  erro?: string;
+}
+
+export interface AmbienteDisponivel {
+  id: string;
+  rotulo: string;
+  mysql_section: string;
+  azure_section: string;
+  key_vault_url: string;
+}
+
+export interface ConfiguracoesResponse {
+  ambiente_ativo: string;
+  ambientes: AmbienteDisponivel[];
+  info_banco: DashboardData["info_banco"];
   erro?: string;
 }
 
@@ -39,6 +56,7 @@ export interface PesquisaRegistro {
 }
 
 export interface ListaResponse {
+  ambiente_ativo?: string;
   filtros: Record<string, string>;
   siglas_orgaos: string[];
   usuarios_logados: string[];
@@ -58,6 +76,7 @@ export interface ListaResponse {
 }
 
 export interface DetalheResponse {
+  ambiente_ativo?: string;
   registro?: PesquisaRegistro;
   erro?: string;
 }

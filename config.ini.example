@@ -7,3 +7,23 @@ password = sua_senha_aqui
 
 [azure]
 key_vault_url =
+
+[mysql_avipe_hml]
+host = 127.0.0.1
+port = 3306
+database = avipebd
+user = avipe
+password = kv:mysql-avipe-password
+
+[azure_hml]
+key_vault_url = https://nape-hml-kv.vault.azure.net/
+
+[mysql_avipe_prd]
+host = 127.0.0.1
+port = 3306
+database = avipebd
+user = avipe
+password = kv:mysql-avipe-password
+
+[azure_prd]
+key_vault_url = https://nape-prd-kv.vault.azure.net/

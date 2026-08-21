@@ -1,4 +1,4 @@
-export type RouteView = "home" | "lista" | "detalhe";
+export type RouteView = "home" | "lista" | "detalhe" | "configuracoes";
 
 export function getViewFromPath(pathname: string): RouteView {
   if (pathname.startsWith("/pesquisas/detalhe/")) {
@@ -6,6 +6,9 @@ export function getViewFromPath(pathname: string): RouteView {
   }
   if (pathname.startsWith("/pesquisas/")) {
     return "lista";
+  }
+  if (pathname.startsWith("/configuracoes/")) {
+    return "configuracoes";
   }
   return "home";
 }
