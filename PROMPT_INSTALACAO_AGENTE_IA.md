@@ -28,6 +28,8 @@ Seu objetivo e conduzir a instalacao de ponta a ponta, acompanhar cada etapa, re
 - Frontend: React + Vite + TypeScript
 - Banco principal de negocio: MySQL `avipebd`
 - Banco local auxiliar do Django: SQLite
+- O frontend desta versao depende de uma pasta offline `C:\Users\<usuario>\Downloads\pacotes-npm`
+- Motivo: e conhecido que a rede interna da empresa bloqueia o download direto desses pacotes
 - O sistema depende obrigatoriamente de `config.ini` na raiz do projeto
 - O sistema pode usar:
   - senha literal no `config.ini`
@@ -57,8 +59,19 @@ Seu objetivo e conduzir a instalacao de ponta a ponta, acompanhar cada etapa, re
 
 - Verificar se `python` esta disponivel no PATH.
 - Verificar se `node`, `npm` e, se possivel, suas versoes, estao disponiveis.
+- Confirmar se a pasta `C:\Users\<usuario>\Downloads\pacotes-npm` existe.
+- Confirmar se ela contem:
+  - `esbuild-0.18.20.tgz`
+  - `win32-x64-0.18.20.tgz`
+  - `rollup-win32-x64-msvc-4.62.4.tgz`
 - Informar claramente qualquer ausencia.
-- Se Python ou Node/npm nao existirem, parar e orientar o usuario.
+- Se Python, Node/npm ou a pasta offline de pacotes nao existirem, parar e orientar o usuario.
+- Informar os links diretos quando houver ausencia:
+  - Python 3.14.6: `https://www.python.org/ftp/python/3.14.6/python-3.14.6-amd64.exe`
+  - Node.js 24.18.0 x64: `https://nodejs.org/dist/v24.18.0/node-v24.18.0-x64.msi`
+  - esbuild 0.18.20: `https://registry.npmjs.org/esbuild/-/esbuild-0.18.20.tgz`
+  - @esbuild/win32-x64 0.18.20: `https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.18.20.tgz`
+  - @rollup/rollup-win32-x64-msvc 4.62.4: `https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.62.4.tgz`
 
 ### ETAPA 3. Validar integridade minima do projeto
 
@@ -273,6 +286,7 @@ Informar:
 - Nao exponha senhas em texto aberto no relatorio.
 - Se encontrar placeholders como `sua_senha_aqui`, trate isso como configuracao incompleta.
 - Se o log indicar problema de download de pacote, destaque explicitamente que isso pode ser efeito da rede interna do tribunal.
+- Se faltar a pasta `pacotes-npm`, trate isso como bloqueio impeditivo inicial e nao deixe a instalacao avancar ate que ela seja criada e preenchida.
 - Se o sistema estiver tecnicamente instalado, mas sem `config.ini` valido, nao marque a instalacao como pronta.
 - Se o sistema iniciar mas nao conseguir acessar dados, diferencie "aplicacao sobe" de "aplicacao operacional".
 

@@ -7,16 +7,23 @@ if not exist "logs" mkdir "logs" >nul 2>nul
 for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "TIMESTAMP=%%I"
 set "LOG_FILE=%~dp0logs\preparar_avipe_%TIMESTAMP%.log"
 set "STEP_FAILED="
+set "PACOTES_NPM_DIR=%USERPROFILE%\Downloads\pacotes-npm"
+set "PYTHON_DOWNLOAD_URL=https://www.python.org/ftp/python/3.14.6/python-3.14.6-amd64.exe"
+set "NODE_DOWNLOAD_URL=https://nodejs.org/dist/v24.18.0/node-v24.18.0-x64.msi"
 
 call :log =========================================
 call :log  AVIPE Painel - Preparacao de nova maquina
 call :log =========================================
 call :log Log desta execucao: "%LOG_FILE%"
 call :log
+call :log [INFO] Este instalador valida dependencias offline antes de tentar downloads.
+call :log [INFO] Motivo: a rede interna da empresa frequentemente bloqueia o download direto de pacotes do npm.
+call :log
 
 where python >>"%LOG_FILE%" 2>&1
 if errorlevel 1 (
-    call :fail "Python nao foi encontrado no PATH." "Instale o Python e tente novamente."
+    call :fail "Python nao foi encontrado no PATH." "Instale o Python 3.14.6 e tente novamente."
+    call :log [INFO] Download direto recomendado: %PYTHON_DOWNLOAD_URL%
     call :showLogHint
     pause
     exit /b 1
@@ -24,7 +31,8 @@ if errorlevel 1 (
 
 where npm >>"%LOG_FILE%" 2>&1
 if errorlevel 1 (
-    call :fail "npm nao foi encontrado no PATH." "Instale o Node.js e tente novamente."
+    call :fail "npm nao foi encontrado no PATH." "Instale o Node.js 24.18.0 e tente novamente."
+    call :log [INFO] Download direto recomendado: %NODE_DOWNLOAD_URL%
     call :showLogHint
     pause
     exit /b 1
@@ -33,6 +41,7 @@ if errorlevel 1 (
 call :runStep "Versao do Python" "python --version"
 call :runStep "Versao do npm" "npm --version"
 call :runStep "Versao do Node.js" "node --version"
+call :validarPacotesOfflineNpm
 
 call :log [INFO] Validando arquivos obrigatorios do projeto...
 if not exist "requirements.txt" (
@@ -54,14 +63,14 @@ if not exist ".venv\Scripts\python.exe" (
     call :log [OK] Ambiente virtual ja existe.
 )
 
-call :runStep "Atualizando pip" "\".venv\Scripts\python.exe\" -m pip install --upgrade pip"
-call :runStep "Instalando dependencias Python" "\".venv\Scripts\python.exe\" -m pip install -r requirements.txt"
+call :runStep "Atualizando pip" ".venv\Scripts\python.exe -m pip install --upgrade pip"
+call :runStep "Instalando dependencias Python" ".venv\Scripts\python.exe -m pip install -r requirements.txt"
 
 call :runStep "Instalando dependencias do frontend React" "pushd frontend && npm install && popd"
 call :runStep "Gerando build do frontend React" "pushd frontend && npm run build && popd"
 
-call :runStep "Aplicando migracoes locais do Django" "\".venv\Scripts\python.exe\" manage.py migrate"
-call :runStep "Validando a aplicacao com manage.py check" "\".venv\Scripts\python.exe\" manage.py check"
+call :runStep "Aplicando migracoes locais do Django" ".venv\Scripts\python.exe manage.py migrate"
+call :runStep "Validando a aplicacao com manage.py check" ".venv\Scripts\python.exe manage.py check"
 
 if not exist "config.ini" (
     if exist "config.ini.example" (
@@ -84,7 +93,8 @@ call :log Proximos passos:
 call :log   1. revisar e preencher o arquivo "config.ini" na raiz do projeto
 call :log   2. se nao quiser depender de Azure localmente, criar "config.local.ini" com as senhas literais necessarias
 call :log   3. se usar Key Vault, validar AZURE_CLIENT_ID, AZURE_TENANT_ID e AZURE_CLIENT_SECRET
-call :log   4. iniciar com "iniciar_avipe_painel.bat"
+call :log   4. manter a pasta "%PACOTES_NPM_DIR%" com os pacotes offline do npm para futuras reinstalacoes
+call :log   5. iniciar com "iniciar_avipe_painel.bat"
 call :showLogHint
 pause
 exit /b 0
@@ -92,7 +102,8 @@ exit /b 0
 :runStep
 set "STEP_FAILED=%~1"
 call :log [INFO] %~1...
-cmd /d /c %~2 >>"%LOG_FILE%" 2>&1
+set "STEP_COMMAND=%~2"
+cmd /d /s /c "%STEP_COMMAND%" >>"%LOG_FILE%" 2>&1
 if errorlevel 1 (
     call :fail "%~1 falhou." ""
     if /i "%~1"=="Instalando dependencias Python" call :log [DICA] Em rede interna, verifique acesso ao indice do pip, proxy corporativo, DNS e certificados.
@@ -102,6 +113,53 @@ if errorlevel 1 (
     exit /b 1
 )
 call :log [OK] %~1 concluido.
+exit /b 0
+
+:validarPacotesOfflineNpm
+call :log [INFO] Validando pasta offline de pacotes npm...
+if not exist "frontend\package-lock.json" (
+    call :log [AVISO] frontend\package-lock.json nao foi encontrado. A validacao offline de pacotes npm sera ignorada.
+    exit /b 0
+)
+
+findstr /i /c:"Downloads/pacotes-npm" "frontend\package-lock.json" >nul 2>&1
+if errorlevel 1 (
+    call :log [INFO] O frontend nao referencia pacotes offline em Downloads\pacotes-npm.
+    exit /b 0
+)
+
+if not exist "%PACOTES_NPM_DIR%\" (
+    call :fail "A pasta offline de pacotes npm nao foi encontrada em \"%PACOTES_NPM_DIR%\"." "Crie a pasta antes da instalacao e copie os pacotes listados abaixo."
+    call :mostrarPacotesOfflineObrigatorios
+    call :showLogHint
+    pause
+    exit /b 1
+)
+
+set "PACOTE_FALTANDO="
+if not exist "%PACOTES_NPM_DIR%\esbuild-0.18.20.tgz" set "PACOTE_FALTANDO=1"
+if not exist "%PACOTES_NPM_DIR%\win32-x64-0.18.20.tgz" set "PACOTE_FALTANDO=1"
+if not exist "%PACOTES_NPM_DIR%\rollup-win32-x64-msvc-4.62.4.tgz" set "PACOTE_FALTANDO=1"
+if defined PACOTE_FALTANDO (
+    call :fail "A pasta offline existe, mas nem todos os pacotes obrigatorios foram encontrados." "Copie os tres arquivos .tgz esperados antes de prosseguir."
+    call :mostrarPacotesOfflineObrigatorios
+    call :showLogHint
+    pause
+    exit /b 1
+)
+
+call :log [OK] Pasta offline validada em "%PACOTES_NPM_DIR%".
+exit /b 0
+
+:mostrarPacotesOfflineObrigatorios
+call :log [INFO] O frontend desta versao depende dos seguintes arquivos offline:
+call :log [INFO]   Pasta esperada: %PACOTES_NPM_DIR%
+call :log [INFO]   1. esbuild-0.18.20.tgz
+call :log [INFO]      Link direto: https://registry.npmjs.org/esbuild/-/esbuild-0.18.20.tgz
+call :log [INFO]   2. win32-x64-0.18.20.tgz
+call :log [INFO]      Link direto: https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.18.20.tgz
+call :log [INFO]   3. rollup-win32-x64-msvc-4.62.4.tgz
+call :log [INFO]      Link direto: https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.62.4.tgz
 exit /b 0
 
 :orientarConfiguracao

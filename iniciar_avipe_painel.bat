@@ -2,6 +2,7 @@
 setlocal
 
 cd /d "%~dp0"
+set "PACOTES_NPM_DIR=%USERPROFILE%\Downloads\pacotes-npm"
 
 echo =========================================
 echo  AVIPE Painel - Inicializacao
@@ -32,6 +33,15 @@ if exist "config.ini" (
 
 if not exist "frontend\dist\index.html" (
     echo [ERRO] O build do frontend React nao foi encontrado em "frontend\dist".
+    if exist "frontend\package-lock.json" (
+        findstr /i /c:"Downloads/pacotes-npm" "frontend\package-lock.json" >nul 2>&1
+        if not errorlevel 1 (
+            echo [INFO] Antes de preparar em maquina nova, confira a pasta offline:
+            echo [INFO]   "%PACOTES_NPM_DIR%"
+            echo [INFO] Essa pasta deve existir com os pacotes .tgz exigidos pelo frontend.
+            echo [INFO] Motivo: a rede interna da empresa bloqueia com frequencia o download direto desses pacotes.
+        )
+    )
     echo Antes de iniciar em uma maquina nova, execute:
     echo   preparar_avipe_painel_nova_maquina.bat
     echo ou rode manualmente:

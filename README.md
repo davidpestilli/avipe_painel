@@ -120,14 +120,21 @@ avipe_painel/
 ## Requisitos para instalacao local
 
 - Windows
-- Python disponivel no `PATH`
-- Node.js disponivel no `PATH`
+- Python 3.14.6 disponivel no `PATH`
+- Node.js 24.18.0 e npm 11.16.0 disponiveis no `PATH`
 - acesso ao banco `avipebd`
+- pasta offline `C:\Users\<usuario>\Downloads\pacotes-npm` com os pacotes `.tgz` exigidos pelo frontend
 - uma das opcoes de credencial abaixo:
   - `config.ini` com senha literal
   - `config.local.ini`
   - Azure Key Vault
   - variavel `AVIPE_PAINEL_MYSQL_AVIPE_PASSWORD`
+
+Importante:
+
+- O uso da pasta `pacotes-npm` e intencional nesta instalacao.
+- Motivo: e conhecido que a rede interna da empresa bloqueia o download direto de parte dos pacotes do npm.
+- Por isso, em outras maquinas, o usuario deve criar previamente `C:\Users\<usuario>\Downloads\pacotes-npm` e copiar ali os pacotes offline exigidos por esta versao do projeto.
 
 ## Dependencias
 
@@ -222,12 +229,30 @@ Na aba `Configuracoes`, a interface passa a usar o ambiente selecionado em:
 
 ### 3. Preparar a maquina
 
+Antes de executar o instalador, garanta estes pre-requisitos offline:
+
+- criar a pasta `C:\Users\<usuario>\Downloads\pacotes-npm`
+- copiar para dentro dela:
+  - `esbuild-0.18.20.tgz`
+  - `win32-x64-0.18.20.tgz`
+  - `rollup-win32-x64-msvc-4.62.4.tgz`
+- instalar previamente:
+  - Python 3.14.6: [download direto](https://www.python.org/ftp/python/3.14.6/python-3.14.6-amd64.exe)
+  - Node.js 24.18.0 x64: [download direto](https://nodejs.org/dist/v24.18.0/node-v24.18.0-x64.msi)
+
+Links diretos dos pacotes offline do npm:
+
+- `esbuild-0.18.20.tgz`: [download direto](https://registry.npmjs.org/esbuild/-/esbuild-0.18.20.tgz)
+- `win32-x64-0.18.20.tgz`: [download direto](https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.18.20.tgz)
+- `rollup-win32-x64-msvc-4.62.4.tgz`: [download direto](https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.62.4.tgz)
+
 ```powershell
 .\preparar_avipe_painel_nova_maquina.bat
 ```
 
 Esse atalho executa:
 
+- checagem inicial de Python, Node.js, npm e da pasta offline `Downloads\pacotes-npm`
 - criacao da `.venv`, se necessario
 - upgrade do `pip`
 - instalacao de `requirements.txt`
@@ -238,6 +263,8 @@ Esse atalho executa:
 
 Agora o instalador tambem:
 
+- interrompe logo no inicio quando faltam Python, Node.js ou a pasta `pacotes-npm`
+- informa os links diretos dos instaladores e dos pacotes offline esperados
 - cria log com timestamp em `logs\`
 - registra a saida tecnica das etapas de Python, Node, `pip`, `npm`, build e migracoes
 - destaca falhas que podem estar ligadas a rede interna, proxy, DNS ou certificados
@@ -377,6 +404,9 @@ Verifique:
 Verifique:
 
 - o arquivo de log mais recente em `logs\`
+- se a pasta `C:\Users\<usuario>\Downloads\pacotes-npm` foi criada antes da instalacao
+- se os tres arquivos `.tgz` esperados estao dentro dessa pasta
+- se Python 3.14.6 e Node.js 24.18.0 foram instalados e adicionados ao `PATH`
 - em qual etapa ocorreu a falha: `.venv`, `pip`, `requirements.txt`, `npm install`, build, migracoes ou `manage.py check`
 - se a falha indica bloqueio de rede, proxy, DNS, certificado ou indisponibilidade externa
 - se `config.ini` foi criado e ainda contem valores de exemplo
