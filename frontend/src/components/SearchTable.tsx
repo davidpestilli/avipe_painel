@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { PesquisaRegistro } from "../types";
 
 export type PesquisaViewMode = "agrupada" | "linhas";
@@ -42,6 +42,8 @@ export function SearchTable({
   formatDate,
   formatBoolean,
 }: SearchTableProps) {
+  const [copiedProcess, setCopiedProcess] = useState<string | null>(null);
+
   const groupedRecords = Array.from(
     records.reduce((map, item) => {
       const processo = String(item.nuprocesso ?? "Sem processo");
@@ -53,6 +55,22 @@ export function SearchTable({
   );
 
   const columnCount = showAction ? 9 : 8;
+
+  async function handleCopyProcess(processo: string) {
+    if (!processo || processo === "Sem processo") {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(processo);
+      setCopiedProcess(processo);
+      window.setTimeout(() => {
+        setCopiedProcess((current) => (current === processo ? null : current));
+      }, 1800);
+    } catch (error) {
+      console.error("Nao foi possivel copiar o numero do processo.", error);
+    }
+  }
 
   return (
     <section className="rounded-3xl border border-slate-800 bg-slate-900/85 shadow-2xl shadow-slate-950/40">
@@ -91,7 +109,16 @@ export function SearchTable({
               viewMode === "linhas"
                 ? records.map((item, index) => (
                     <tr key={`${item.id}-${item.nuprocesso}-${index}`} className={striped ? PROCESS_ROW_CLASSES[index % PROCESS_ROW_CLASSES.length] : "bg-slate-900/10"}>
-                      <BodyCell className="border-t border-slate-600/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">{formatText(item.nuprocesso)}</BodyCell>
+                      <BodyCell className="border-t border-slate-600/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                        <div className="inline-flex items-center gap-2">
+                          <span>{formatText(item.nuprocesso)}</span>
+                          <CopyProcessButton
+                            copied={copiedProcess === String(item.nuprocesso ?? "")}
+                            disabled={!item.nuprocesso}
+                            onClick={() => void handleCopyProcess(String(item.nuprocesso ?? ""))}
+                          />
+                        </div>
+                      </BodyCell>
                       <BodyCell className="border-t border-slate-600/90">{formatText(item.cpf)}</BodyCell>
                       <BodyCell className="border-t border-slate-600/90">{formatText(item.sig_orgao)}</BodyCell>
                       <BodyCell className="border-t border-slate-600/90">{formatText(item.usuario_logado)}</BodyCell>
@@ -121,17 +148,20 @@ export function SearchTable({
                     return [
                       <tr key={`group-${processo}`} className={processRowClass}>
                         <BodyCell className="border-t border-slate-600/90 font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                          <button
-                            className="inline-flex items-center gap-2 text-left text-cyan-100 transition hover:text-white"
-                            type="button"
-                            onClick={() => onToggleProcess(processo)}
-                          >
-                            <span className={`inline-block text-xs transition ${expanded ? "rotate-90" : ""}`}>▶</span>
-                            <span>{processo}</span>
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              className="inline-flex items-center gap-2 text-left text-cyan-100 transition hover:text-white"
+                              type="button"
+                              onClick={() => onToggleProcess(processo)}
+                            >
+                              <span className={`inline-block text-xs transition ${expanded ? "rotate-90" : ""}`}>▶</span>
+                              <span>{processo}</span>
+                            </button>
+                            <CopyProcessButton copied={copiedProcess === processo} disabled={!processo || processo === "Sem processo"} onClick={() => void handleCopyProcess(processo)} />
                             <span className="rounded-full border border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-200">
                               {items.length} registro(s)
                             </span>
-                          </button>
+                          </div>
                         </BodyCell>
                         <BodyCell className="border-t border-slate-600/90 text-slate-500" />
                         <BodyCell className="border-t border-slate-600/90">{formatText(first.sig_orgao)}</BodyCell>
@@ -199,4 +229,28 @@ function HeaderCell({ children, centered = false }: { children?: ReactNode; cent
 
 function BodyCell({ children, centered = false, className = "" }: { children?: ReactNode; centered?: boolean; className?: string }) {
   return <td className={`whitespace-nowrap border-t border-slate-800 px-4 py-3 text-slate-100 ${centered ? "text-center" : "text-left"} ${className}`}>{children}</td>;
+}
+
+function CopyProcessButton({ copied, disabled, onClick }: { copied: boolean; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition ${
+        disabled
+          ? "cursor-not-allowed border-slate-700/60 bg-slate-900/40 text-slate-500"
+          : copied
+            ? "border-emerald-400/60 bg-emerald-400/15 text-emerald-200"
+            : "border-cyan-400/35 bg-slate-950/25 text-cyan-200 hover:bg-cyan-400 hover:text-slate-950"
+      }`}
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={copied ? "Processo copiado" : "Copiar numero do processo"}
+      aria-label={copied ? "Processo copiado" : "Copiar numero do processo"}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5 fill-none stroke-current" strokeWidth="1.8">
+        <rect x="9" y="9" width="10" height="10" rx="2" />
+        <path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
+      </svg>
+    </button>
+  );
 }
