@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { fetchConfiguracoes, fetchDashboard, fetchDetalhe, fetchLista, fetchObservabilidade } from "./api";
+import { exportLista, fetchConfiguracoes, fetchDashboard, fetchDetalhe, fetchLista, fetchObservabilidade } from "./api";
 import { CompactHeader, LoadingOverlay } from "./components/AppShell";
 import { DetailPage } from "./components/DetailPage";
 import {
@@ -82,6 +82,7 @@ function App() {
   const [loadingHome, setLoadingHome] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [loadingExport, setLoadingExport] = useState(false);
   const [error, setError] = useState("");
   const [returnQuery, setReturnQuery] = useState("");
   const [periodo, setPeriodo] = useState("today");
@@ -283,6 +284,28 @@ function App() {
 
   const detalhesRegistro = detalhe?.registro ? Object.entries(detalhe.registro) : [];
 
+  async function handleExportLista() {
+    setLoadingExport(true);
+    try {
+      const query = buildQueryString(filters, FILTER_KEYS);
+      const blob = await exportLista(query, pesquisaViewMode, selectedAmbiente);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const filePrefix = pesquisaViewMode === "agrupada" ? "processos" : "registros";
+
+      link.href = url;
+      link.download = `pesquisas_${filePrefix}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Falha ao exportar a planilha.");
+    } finally {
+      setLoadingExport(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#0b1220] text-slate-100">
       <div className="mx-auto max-w-[1700px] px-4 py-5 sm:px-6 lg:px-8">
@@ -336,7 +359,9 @@ function App() {
               setPesquisaViewMode={setPesquisaViewMode}
               expandedProcesses={expandedProcesses}
               setExpandedProcesses={setExpandedProcesses}
+              loadingExport={loadingExport}
               onSubmit={handleFilterSubmit}
+              onExport={() => void handleExportLista()}
               onOpenDetail={handleOpenDetail}
               onPreviousPage={() => handleGoToLista((lista?.paginacao.pagina ?? 2) - 1)}
               onNextPage={() => handleGoToLista((lista?.paginacao.pagina ?? 0) + 1)}

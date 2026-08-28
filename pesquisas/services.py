@@ -41,6 +41,63 @@ class Paginacao:
         return self.pagina < self.total_paginas
 
 
+def _normalizar_processo(valor: Any) -> str:
+    texto = str(valor or "").strip()
+    return texto or "Sem processo"
+
+
+def _construir_filtros_where(filtros: dict[str, str]) -> tuple[str, list[Any]]:
+    where = []
+    params: list[Any] = []
+
+    if filtros.get("nuprocesso"):
+        where.append("nuprocesso LIKE %s")
+        params.append(f"%{filtros['nuprocesso'].strip()}%")
+    if filtros.get("cpf"):
+        where.append("cpf LIKE %s")
+        params.append(f"%{filtros['cpf'].strip()}%")
+    if filtros.get("sig_orgao"):
+        where.append("sig_orgao = %s")
+        params.append(filtros["sig_orgao"].strip())
+    if filtros.get("usuario_logado"):
+        where.append("usuario_logado = %s")
+        params.append(filtros["usuario_logado"].strip())
+    data_insercao_status = filtros.get("data_insercao_status", "").strip()
+    data_insercao_inicio = filtros.get("data_insercao_inicio", "").strip()
+    data_insercao_fim = filtros.get("data_insercao_fim", "").strip() or data_insercao_inicio
+    if data_insercao_status == "filled" and data_insercao_inicio:
+        where.append("DATE(data_insercao) >= %s")
+        params.append(data_insercao_inicio)
+        where.append("DATE(data_insercao) <= %s")
+        params.append(data_insercao_fim)
+    if filtros.get("processado") in {"0", "1"}:
+        where.append("processado = %s")
+        params.append(int(filtros["processado"]))
+    data_processamento_status = filtros.get("data_processamento_status", "").strip()
+    data_processamento_inicio = filtros.get("data_processamento_inicio", "").strip()
+    data_processamento_fim = filtros.get("data_processamento_fim", "").strip() or data_processamento_inicio
+    if data_processamento_status == "null":
+        where.append("data_processamento IS NULL")
+    else:
+        if data_processamento_status == "filled":
+            where.append("data_processamento IS NOT NULL")
+        if data_processamento_inicio:
+            where.append("DATE(data_processamento) >= %s")
+            params.append(data_processamento_inicio)
+            where.append("DATE(data_processamento) <= %s")
+            params.append(data_processamento_fim)
+    if filtros.get("juntado") == "pending":
+        where.append("(juntado = 0 OR juntado IS NULL)")
+    elif filtros.get("juntado") in {"0", "1"}:
+        where.append("juntado = %s")
+        params.append(int(filtros["juntado"]))
+    elif filtros.get("juntado") == "null":
+        where.append("juntado IS NULL")
+
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    return where_sql, params
+
+
 def normalizar_ambiente(ambiente: str | None) -> str:
     valor = (ambiente or AMBIENTE_PADRAO).strip().lower()
     return valor or AMBIENTE_PADRAO
@@ -328,54 +385,7 @@ def consultar_registros(
     por_pagina: int = 25,
     ambiente: str = AMBIENTE_PADRAO,
 ) -> Paginacao:
-    where = []
-    params: list[Any] = []
-
-    if filtros.get("nuprocesso"):
-        where.append("nuprocesso LIKE %s")
-        params.append(f"%{filtros['nuprocesso'].strip()}%")
-    if filtros.get("cpf"):
-        where.append("cpf LIKE %s")
-        params.append(f"%{filtros['cpf'].strip()}%")
-    if filtros.get("sig_orgao"):
-        where.append("sig_orgao = %s")
-        params.append(filtros["sig_orgao"].strip())
-    if filtros.get("usuario_logado"):
-        where.append("usuario_logado = %s")
-        params.append(filtros["usuario_logado"].strip())
-    data_insercao_status = filtros.get("data_insercao_status", "").strip()
-    data_insercao_inicio = filtros.get("data_insercao_inicio", "").strip()
-    data_insercao_fim = filtros.get("data_insercao_fim", "").strip() or data_insercao_inicio
-    if data_insercao_status == "filled" and data_insercao_inicio:
-        where.append("DATE(data_insercao) >= %s")
-        params.append(data_insercao_inicio)
-        where.append("DATE(data_insercao) <= %s")
-        params.append(data_insercao_fim)
-    if filtros.get("processado") in {"0", "1"}:
-        where.append("processado = %s")
-        params.append(int(filtros["processado"]))
-    data_processamento_status = filtros.get("data_processamento_status", "").strip()
-    data_processamento_inicio = filtros.get("data_processamento_inicio", "").strip()
-    data_processamento_fim = filtros.get("data_processamento_fim", "").strip() or data_processamento_inicio
-    if data_processamento_status == "null":
-        where.append("data_processamento IS NULL")
-    else:
-        if data_processamento_status == "filled":
-            where.append("data_processamento IS NOT NULL")
-        if data_processamento_inicio:
-            where.append("DATE(data_processamento) >= %s")
-            params.append(data_processamento_inicio)
-            where.append("DATE(data_processamento) <= %s")
-            params.append(data_processamento_fim)
-    if filtros.get("juntado") == "pending":
-        where.append("(juntado = 0 OR juntado IS NULL)")
-    elif filtros.get("juntado") in {"0", "1"}:
-        where.append("juntado = %s")
-        params.append(int(filtros["juntado"]))
-    elif filtros.get("juntado") == "null":
-        where.append("juntado IS NULL")
-
-    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    where_sql, params = _construir_filtros_where(filtros)
     offset = (pagina - 1) * por_pagina
 
     sql_total = f"SELECT COUNT(*) AS total FROM avipe_pesquisa_endereco {where_sql}"
@@ -412,6 +422,80 @@ def consultar_registros(
         total_processos=total_processos,
         total_paginas=total_paginas,
     )
+
+
+def exportar_registros(
+    filtros: dict[str, str],
+    limite: int = 1000,
+    ambiente: str = AMBIENTE_PADRAO,
+) -> list[dict[str, Any]]:
+    where_sql, params = _construir_filtros_where(filtros)
+    sql = f"""
+        SELECT id, nuprocesso, cpf, sig_orgao, ip_cliente, usuario_logado,
+               data_insercao, data_processamento, data_inclusao_localizador,
+               processado, juntado, localizado
+        FROM avipe_pesquisa_endereco
+        {where_sql}
+        ORDER BY data_insercao DESC, id DESC
+        LIMIT %s
+    """
+    with abrir_conexao(ambiente) as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(sql, [*params, limite])
+            return list(cursor.fetchall())
+
+
+def exportar_processos(
+    filtros: dict[str, str],
+    limite: int = 1000,
+    ambiente: str = AMBIENTE_PADRAO,
+) -> list[dict[str, Any]]:
+    where_sql, params = _construir_filtros_where(filtros)
+    processo_expr = "COALESCE(NULLIF(TRIM(nuprocesso), ''), 'Sem processo')"
+    sql = f"""
+        SELECT
+            grupos.processo AS nuprocesso,
+            grupos.total_registros,
+            grupos.ultima_insercao AS data_insercao,
+            grupos.ultima_inclusao_localizador AS data_inclusao_localizador,
+            grupos.ultima_data_processamento AS data_processamento,
+            ultimo.sig_orgao,
+            ultimo.usuario_logado,
+            ultimo.processado,
+            ultimo.juntado
+        FROM (
+            SELECT
+                {processo_expr} AS processo,
+                COUNT(*) AS total_registros,
+                MAX(data_insercao) AS ultima_insercao,
+                MAX(data_inclusao_localizador) AS ultima_inclusao_localizador,
+                MAX(data_processamento) AS ultima_data_processamento,
+                MAX(id) AS maior_id
+            FROM avipe_pesquisa_endereco
+            {where_sql}
+            GROUP BY {processo_expr}
+            ORDER BY ultima_insercao DESC, maior_id DESC
+            LIMIT %s
+        ) AS grupos
+        JOIN avipe_pesquisa_endereco AS ultimo
+          ON ultimo.id = (
+              SELECT sub.id
+              FROM avipe_pesquisa_endereco AS sub
+              WHERE COALESCE(NULLIF(TRIM(sub.nuprocesso), ''), 'Sem processo') = grupos.processo
+              {"AND " + where_sql[6:] if where_sql else ""}
+              ORDER BY sub.data_insercao DESC, sub.id DESC
+              LIMIT 1
+          )
+        ORDER BY grupos.ultima_insercao DESC, ultimo.id DESC
+    """
+    with abrir_conexao(ambiente) as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute(sql, [*params, limite, *params])
+            itens = list(cursor.fetchall())
+
+    for item in itens:
+        item["nuprocesso"] = _normalizar_processo(item.get("nuprocesso"))
+    return itens
 
 
 def buscar_registro_detalhe(registro_id: int, ambiente: str = AMBIENTE_PADRAO) -> dict[str, Any] | None:

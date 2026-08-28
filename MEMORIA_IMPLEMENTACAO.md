@@ -173,6 +173,29 @@ Nesta extensao de infraestrutura foram entregues:
   - `.secrets/`
 - preparacao do projeto para distribuicao a outros colegas por `git pull`, mantendo apenas configuracoes sensiveis fora do repositorio
 
+### Fase 8.2. Exportacao de pesquisa para Excel
+
+Nesta extensao da aba `Pesquisa` foram entregues:
+
+- novo botao de exportacao ao lado de `Filtrar`
+- suporte a exportacao conforme o modo visual ativo:
+  - `Processos`: ate `1000 processos`
+  - `Registros`: ate `1000 registros`
+- reaproveitamento integral dos filtros ativos da tela na geracao da planilha
+- fallback sem filtros para exportacao em ordem do mais recente para o mais antigo
+- nova rota de backend:
+  - `GET /api/pesquisas/exportar/?modo=<agrupada|linhas>`
+- geracao de `.xlsx` no backend com `openpyxl`
+- gravacao da coluna `Processo` como texto para evitar notacao cientifica no Excel
+- aplicacao de formatacao basica da planilha:
+  - cabecalho destacado
+  - primeira linha congelada
+  - autofiltro
+  - largura automatica das colunas
+- protecao de inicializacao do Django quando `openpyxl` nao estiver instalado:
+  - a importacao da biblioteca ocorre apenas no fluxo de exportacao
+  - a ausencia da dependencia nao derruba mais a subida do painel
+
 ## Decisoes de arquitetura
 
 ### 1. Backend Django preservado
@@ -208,6 +231,7 @@ Foram adicionadas:
 
 - `GET /api/observabilidade/`
 - `GET /api/configuracoes/`
+- `GET /api/pesquisas/exportar/`
 
 ### 4. Legado removido do fluxo ativo
 
@@ -315,6 +339,7 @@ Mantem as dependencias Python do backend:
 - MySQL connector
 - Azure Identity
 - Azure Key Vault Secrets
+- OpenPyXL
 
 ### `frontend/package.json`
 
@@ -387,6 +412,7 @@ Ficou responsavel por:
 - shell React na raiz e em `/home/`
 - endpoints JSON
 - entrega da Home, da Pesquisa e de `Configuracoes`
+- geracao do arquivo Excel da aba `Pesquisa`
 
 ### `frontend/src/App.tsx`
 
@@ -397,6 +423,15 @@ Concentra:
 - navegacao entre Home, Pesquisa, Detalhe e Configuracoes
 - ligacao entre dados e componentes principais
 - persistencia e troca do ambiente ativo
+- disparo do download da exportacao de pesquisa
+
+### `frontend/src/components/SearchPage.tsx`
+
+Concentra:
+
+- filtros operacionais da aba `Pesquisa`
+- alternancia entre `Processos` e `Registros`
+- acao visual de exportacao para Excel
 
 ### `frontend/src/components/SettingsPage.tsx`
 
@@ -429,7 +464,7 @@ Concentra:
 - grafico de processamento x juntada
 - seletor de orgaos
 
-## Validacoes realizadas em 21 de agosto de 2026
+## Validacoes realizadas ate 28 de agosto de 2026
 
 Foram validados com sucesso:
 
@@ -440,11 +475,14 @@ Foram validados com sucesso:
 - `GET /api/configuracoes/?ambiente=app`
 - `GET /api/observabilidade/`
 - `GET /api/pesquisas/`
+- `GET /api/pesquisas/exportar/`
 - abertura da Home em `http://127.0.0.1:8000/home/`
 - abertura da Pesquisa
 - abertura da aba `Configuracoes`
 - tooltip de sanamento no grafico Entrada x Processamento
 - destaque de orgaos com diferenca processado x juntado
+- geracao de planilha Excel por `Processos`
+- validacao de subida do Django sem importacao antecipada de `openpyxl`
 
 Tambem foi validado:
 

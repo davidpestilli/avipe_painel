@@ -24,6 +24,7 @@ type SearchPageProps = {
   filters: FilterState;
   setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
   loadingList: boolean;
+  loadingExport: boolean;
   showPeriodFilters: boolean;
   setShowPeriodFilters: React.Dispatch<React.SetStateAction<boolean>>;
   pesquisaViewMode: PesquisaViewMode;
@@ -31,6 +32,7 @@ type SearchPageProps = {
   expandedProcesses: string[];
   setExpandedProcesses: React.Dispatch<React.SetStateAction<string[]>>;
   onSubmit: (event: FormEvent) => Promise<void>;
+  onExport: () => void;
   onOpenDetail: (id: number | string) => Promise<void>;
   onPreviousPage: () => Promise<void>;
   onNextPage: () => Promise<void>;
@@ -44,6 +46,7 @@ export function SearchPage({
   filters,
   setFilters,
   loadingList,
+  loadingExport,
   showPeriodFilters,
   setShowPeriodFilters,
   pesquisaViewMode,
@@ -51,6 +54,7 @@ export function SearchPage({
   expandedProcesses,
   setExpandedProcesses,
   onSubmit,
+  onExport,
   onOpenDetail,
   onPreviousPage,
   onNextPage,
@@ -103,6 +107,24 @@ export function SearchPage({
               </button>
               <button className="inline-flex h-11 min-w-[96px] items-center justify-center rounded-xl bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400" type="submit">
                 {loadingList ? "Filtrando..." : "Filtrar"}
+              </button>
+              <button
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-emerald-400/35 bg-emerald-500/15 text-emerald-200 transition hover:bg-emerald-400 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-900/60 disabled:text-slate-500"
+                type="button"
+                aria-label="Exportar tabela para Excel"
+                title="Exportar tabela para Excel"
+                disabled={loadingExport}
+                onClick={onExport}
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M14 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M10 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M8 9l4 6" strokeLinecap="round" />
+                  <path d="M12 9l-4 6" strokeLinecap="round" />
+                  <path d="M14 7h4" strokeLinecap="round" />
+                  <path d="M14 12h4" strokeLinecap="round" />
+                  <path d="M14 17h4" strokeLinecap="round" />
+                </svg>
               </button>
             </div>
           </div>

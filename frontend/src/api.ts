@@ -1,4 +1,5 @@
 import type { ConfiguracoesResponse, DashboardData, DetalheResponse, ListaResponse, ObservabilidadeResponse } from "./types";
+import type { PesquisaViewMode } from "./components/SearchTable";
 
 async function parseJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T;
@@ -44,4 +45,24 @@ export async function fetchDetalhe(id: string, ambiente: string): Promise<Detalh
   const params = new URLSearchParams({ id });
   const response = await fetch(withAmbiente("/api/pesquisas/detalhe/", ambiente, params));
   return parseJson<DetalheResponse>(response);
+}
+
+export async function exportLista(queryString: string, viewMode: PesquisaViewMode, ambiente: string): Promise<Blob> {
+  const params = new URLSearchParams(queryString);
+  params.delete("pagina");
+  params.set("modo", viewMode);
+  const response = await fetch(withAmbiente("/api/pesquisas/exportar/", ambiente, params));
+  if (!response.ok) {
+    let message = `Falha HTTP ${response.status}`;
+    try {
+      const payload = (await response.json()) as { erro?: string };
+      if (payload?.erro) {
+        message = payload.erro;
+      }
+    } catch {
+      // Ignora falha ao decodificar resposta nao JSON.
+    }
+    throw new Error(message);
+  }
+  return response.blob();
 }

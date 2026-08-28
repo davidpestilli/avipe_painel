@@ -26,6 +26,7 @@ Em 21 de agosto de 2026, o sistema opera com este stack:
 - tooltip de processamento com deficit e sanamento registro a registro por data
 - filtros operacionais por processo, CPF, orgao, usuario, data, processado e juntado
 - consulta paginada da tabela `avipe_pesquisa_endereco`
+- exportacao para Excel na aba `Pesquisa`, respeitando filtros e modo ativo
 - detalhe completo por registro
 
 ## Recortes de tempo da observabilidade
@@ -115,6 +116,7 @@ avipe_painel/
 - `GET /api/configuracoes/?ambiente=<app|hml|prd>`
 - `GET /api/observabilidade/?periodo=<recorte>`
 - `GET /api/pesquisas/`
+- `GET /api/pesquisas/exportar/?modo=<agrupada|linhas>`
 - `GET /api/pesquisas/detalhe/?id=<id>`
 
 ## Requisitos para instalacao local
@@ -147,6 +149,23 @@ As dependencias Python estao em `requirements.txt`:
 - `mysql-connector-python`
 - `azure-identity`
 - `azure-keyvault-secrets`
+- `openpyxl`
+
+### Exportacao para Excel
+
+Na aba `Pesquisa`, o botao ao lado de `Filtrar` gera uma planilha `.xlsx` com estas regras:
+
+- modo `Processos`: exporta ate `1000 processos`, sem expandir os registros internos
+- modo `Registros`: exporta ate `1000 registros`
+- filtros ativos: a planilha respeita os mesmos filtros informados na tela
+- sem filtros: a exportacao usa os itens mais recentes para os mais antigos
+
+Detalhes da planilha:
+
+- a coluna `Processo` e gravada como texto para evitar notacao cientifica no Excel
+- a primeira linha sai com cabecalho formatado
+- a planilha abre com filtro ativo no cabecalho e primeira linha congelada
+- as colunas sao ajustadas automaticamente para abrir legiveis
 
 ### Frontend
 
@@ -395,6 +414,7 @@ Para ambientes especificos, o painel tambem aceita:
 - `pesquisas/views.py`: shell React e endpoints JSON
 - `frontend/src/App.tsx`: interface React ativa
 - `frontend/src/api.ts`: consumo das APIs
+- `frontend/src/components/SearchPage.tsx`: filtros da pesquisa e acao de exportacao
 - `frontend/src/types.ts`: contratos do frontend
 - `frontend/src/components/AppShell.tsx`: cabecalho compacto e overlay de carregamento
 - `frontend/src/components/SettingsPage.tsx`: seletor e resumo do ambiente ativo
@@ -462,6 +482,7 @@ O fluxo atual foi validado localmente com:
 - `npm install`
 - `npm run build`
 - `python manage.py check`
+- `GET /api/pesquisas/exportar/`
 - inicializacao do `preparar_avipe_painel_nova_maquina.bat` com criacao de log em `logs\`
 - leitura por `config.ini` local
 - leitura da API `GET /api/configuracoes/` para `app`
