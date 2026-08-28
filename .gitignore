@@ -5,6 +5,7 @@ config.ini
 db.sqlite3
 staticfiles/
 config.local.ini
+.secrets/
 consultas/
 *.log
 frontend/node_modules/

@@ -14,6 +14,8 @@ port = 3306
 database = avipebd
 user = avipe
 password = kv:mysql-avipe-password
+ssl_ca =
+ssl_verify_cert = false
 
 [azure_hml]
 key_vault_url = https://nape-hml-kv.vault.azure.net/
@@ -24,6 +26,8 @@ port = 3306
 database = avipebd
 user = avipe
 password = kv:mysql-avipe-password
+ssl_ca =
+ssl_verify_cert = false
 
 [azure_prd]
 key_vault_url = https://nape-prd-kv.vault.azure.net/

@@ -158,6 +158,21 @@ Nesta fase foram entregues:
   - `app-nape-hml`
 - validacao de que `hml` e `prd` dependem de permissao RBAC da entidade de servico para leitura de segredos nos respectivos Key Vaults
 
+### Fase 8.1. TLS local e isolamento seguro de certificado
+
+Nesta extensao de infraestrutura foram entregues:
+
+- suporte no backend a parametros opcionais de TLS por ambiente:
+  - `ssl_ca`
+  - `ssl_cert`
+  - `ssl_key`
+  - `ssl_verify_cert`
+  - `ssl_verify_identity`
+- compatibilidade com conexao local direta ao MySQL de `hml` e `prd`, sem necessidade de commitar credenciais
+- convencao de armazenamento do certificado em pasta local ignorada pelo Git:
+  - `.secrets/`
+- preparacao do projeto para distribuicao a outros colegas por `git pull`, mantendo apenas configuracoes sensiveis fora do repositorio
+
 ## Decisoes de arquitetura
 
 ### 1. Backend Django preservado

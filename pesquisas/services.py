@@ -190,13 +190,34 @@ def _aplicar_overrides_de_ambiente(config: configparser.ConfigParser, ambiente: 
 
 def abrir_conexao(ambiente: str = AMBIENTE_PADRAO):
     config = carregar_config_avipe(ambiente)
+    conn_kwargs: dict[str, Any] = {
+        "host": config.get("mysql_avipe", "host"),
+        "port": config.getint("mysql_avipe", "port"),
+        "database": config.get("mysql_avipe", "database"),
+        "user": config.get("mysql_avipe", "user"),
+        "password": config.get("mysql_avipe", "password"),
+        "charset": "utf8mb4",
+    }
+
+    ssl_ca = config.get("mysql_avipe", "ssl_ca", fallback="").strip()
+    ssl_cert = config.get("mysql_avipe", "ssl_cert", fallback="").strip()
+    ssl_key = config.get("mysql_avipe", "ssl_key", fallback="").strip()
+    ssl_verify_cert = config.get("mysql_avipe", "ssl_verify_cert", fallback="").strip().lower()
+    ssl_verify_identity = config.get("mysql_avipe", "ssl_verify_identity", fallback="").strip().lower()
+
+    if ssl_ca:
+        conn_kwargs["ssl_ca"] = ssl_ca
+    if ssl_cert:
+        conn_kwargs["ssl_cert"] = ssl_cert
+    if ssl_key:
+        conn_kwargs["ssl_key"] = ssl_key
+    if ssl_verify_cert in {"1", "true", "yes", "on"}:
+        conn_kwargs["ssl_verify_cert"] = True
+    if ssl_verify_identity in {"1", "true", "yes", "on"}:
+        conn_kwargs["ssl_verify_identity"] = True
+
     return mysql.connector.connect(
-        host=config.get("mysql_avipe", "host"),
-        port=config.getint("mysql_avipe", "port"),
-        database=config.get("mysql_avipe", "database"),
-        user=config.get("mysql_avipe", "user"),
-        password=config.get("mysql_avipe", "password"),
-        charset="utf8mb4",
+        **conn_kwargs,
     )
 
 

@@ -124,6 +124,7 @@ avipe_painel/
 - Node.js 24.18.0 e npm 11.16.0 disponiveis no `PATH`
 - acesso ao banco `avipebd`
 - pasta offline `C:\Users\<usuario>\Downloads\pacotes-npm` com os pacotes `.tgz` exigidos pelo frontend
+- certificado raiz local quando o ambiente exigir TLS no MySQL
 - uma das opcoes de credencial abaixo:
   - `config.ini` com senha literal
   - `config.local.ini`
@@ -175,6 +176,8 @@ Se preferir, renomeie a pasta local conforme sua convencao.
 
 O painel procura a configuracao em `config.ini` na raiz do proprio projeto.
 
+Como o repositorio e standalone, esse arquivo deve ficar na raiz do proprio `avipe_painel`. Nao ha exigencia de manter o projeto dentro de uma pasta `TJSP_AVIPE`.
+
 Voce pode usar `config.ini.example` como base:
 
 ```ini
@@ -198,6 +201,8 @@ port = 3306
 database = avipebd
 user = avipe
 password = kv:mysql-avipe-password
+ssl_ca = C:\caminho\para\certificado.pem
+ssl_verify_cert = true
 
 [azure_hml]
 key_vault_url = https://nape-hml-kv.vault.azure.net/
@@ -208,6 +213,8 @@ port = 3306
 database = avipebd
 user = avipe
 password = kv:mysql-avipe-password
+ssl_ca = C:\caminho\para\certificado.pem
+ssl_verify_cert = true
 
 [azure_prd]
 key_vault_url = https://nape-prd-kv.vault.azure.net/
@@ -226,6 +233,33 @@ Na aba `Configuracoes`, a interface passa a usar o ambiente selecionado em:
 - `Home`
 - `Pesquisa`
 - `Detalhe`
+
+### Certificado local para MySQL
+
+Quando o banco exigir TLS, mantenha o certificado em uma pasta local fora de versionamento, por exemplo:
+
+- `C:\Users\<usuario>\projetos\avipe_painel\.secrets\DigiCertGlobalRootG2.crt.pem`
+
+O repositorio ja ignora `.secrets/` no Git. Assim:
+
+- o certificado nao vai para o GitHub
+- segredos locais continuam restritos a cada maquina
+- o mesmo clone pode ser preparado por outros colegas sem expor credenciais
+
+Campos opcionais aceitos em cada secao `mysql`:
+
+- `ssl_ca`
+- `ssl_cert`
+- `ssl_key`
+- `ssl_verify_cert`
+- `ssl_verify_identity`
+
+Exemplo local para `hml` ou `prd`:
+
+```ini
+ssl_ca = C:\Users\<usuario>\projetos\avipe_painel\.secrets\DigiCertGlobalRootG2.crt.pem
+ssl_verify_cert = true
+```
 
 ### 3. Preparar a maquina
 
