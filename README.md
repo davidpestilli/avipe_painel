@@ -25,6 +25,7 @@ Em 21 de agosto de 2026, o sistema opera com este stack:
 - cabecalho unificado `WATCHER AVIPE` com efeito visual de brilho animado
 - destaque operacional de orgaos com diferenca entre processado e juntado
 - tooltip de processamento com deficit e sanamento registro a registro por data
+- tooltip do grafico de linhas `Entrada x Processamento` com lista colorida das unidades que tiveram entrada no horario
 - filtros operacionais por processo, CPF, orgao, usuario, data, processado e juntado
 - consulta paginada da tabela `avipe_pesquisa_endereco`
 - exportacao para Excel na aba `Pesquisa`, respeitando filtros e modo ativo
@@ -69,6 +70,15 @@ Exemplo:
 `SANTANA01CIV: 360 (-45) (+30 29/07) (+10 30/07)`
 
 Esse calculo e feito **registro a registro** no backend (`pesquisas/analytics.py`) e enviado em `sanamento_por_orgao` dentro de cada ponto da `evolucao`.
+
+Na visualizacao `Linhas`, o tooltip de cada ponto agora mostra:
+
+- horario do bucket
+- total de `Entrada`
+- total de `Autos processados` ou `Registros processados`
+- lista das unidades com entrada naquele horario, usando a nomenclatura original do campo `Orgao` e uma cor distinta por unidade
+
+Essa lista e enviada no campo `orgaos_entrada` dentro de cada ponto da `evolucao`.
 
 ### Grafico Processamento x Juntada por Unidade
 

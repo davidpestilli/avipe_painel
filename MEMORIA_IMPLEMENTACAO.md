@@ -547,6 +547,7 @@ Foram validados com sucesso:
 - abertura da aba `Configuracoes`
 - toggle compartilhado de exibicao do orgao `SUPORTE`
 - tooltip de sanamento no grafico Entrada x Processamento
+- tooltip do grafico de linhas Entrada x Processamento com lista colorida de unidades por horario
 - destaque de orgaos com diferenca processado x juntado
 - geracao de planilha Excel por `Processos`
 - validacao de subida do Django sem importacao antecipada de `openpyxl`

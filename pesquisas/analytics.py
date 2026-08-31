@@ -230,6 +230,18 @@ def _serializar_recuperacoes(
     return [item[1] for item in itens]
 
 
+def _serializar_orgaos_entrada(
+    por_orgao_registros: dict[str, int],
+) -> list[dict[str, Any]]:
+    itens = [
+        {"orgao": orgao, "quantidade": quantidade}
+        for orgao, quantidade in por_orgao_registros.items()
+        if int(quantidade) > 0
+    ]
+    itens.sort(key=lambda item: (-item["quantidade"], item["orgao"]))
+    return itens
+
+
 def _calcular_sanamento_fluxo(linhas: list[dict[str, Any]], periodo: PeriodWindow) -> dict[str, dict[str, dict[str, Any]]]:
     sanamento_registros: dict[str, dict[str, dict[str, int]]] = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     pendente_registros: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
@@ -497,6 +509,7 @@ def buscar_observabilidade(period_key: str, ambiente: str = AMBIENTE_PADRAO) -> 
     for bucket in _iterar_buckets_periodo(periodo, set(throughput_timeline_registros) | set(throughput_timeline_processos)):
         totais_registros = throughput_timeline_registros.get(bucket, {"inclusoes": 0, "processamentos": 0})
         totais_processos = throughput_timeline_processos.get(bucket, {"inclusoes": set(), "processamentos": set()})
+        por_orgao_throughput = throughput_timeline_registros_por_orgao.get(bucket, {})
         registro = {
             "bucket": bucket.isoformat(),
             "label": _formatar_bucket(bucket, periodo.bucket_hours),
@@ -514,6 +527,7 @@ def buscar_observabilidade(period_key: str, ambiente: str = AMBIENTE_PADRAO) -> 
             registro[f"{orgao}__inclusoes_processos"] = len(dados["inclusoes"])
             registro[f"{orgao}__processamentos_processos"] = len(dados["processamentos"])
         registro["sanamento_por_orgao"] = sanamento_por_bucket.get(bucket.isoformat(), {})
+        registro["orgaos_entrada"] = _serializar_orgaos_entrada({orgao: dados["inclusoes"] for orgao, dados in por_orgao_throughput.items()})
         timeline_throughput.append(registro)
 
     timeline_status = []

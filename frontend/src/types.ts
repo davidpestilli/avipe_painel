@@ -116,6 +116,19 @@ export interface ObservabilidadeSanamentoOrgao {
 
 export type ObservabilidadeSanamentoPorOrgao = Record<string, ObservabilidadeSanamentoOrgao>;
 
+export interface ObservabilidadeOrgaoEntrada {
+  orgao: string;
+  quantidade: number;
+}
+
+export type ObservabilidadeChartRowValue =
+  | string
+  | number
+  | null
+  | undefined
+  | ObservabilidadeSanamentoPorOrgao
+  | ObservabilidadeOrgaoEntrada[];
+
 export interface ObservabilidadeTotalPorOrgao {
   orgao: string;
   total?: number;
@@ -177,16 +190,16 @@ export interface ObservabilidadeResponse {
   entrada_localizador_por_orgao: {
     resumo: ObservabilidadeResumo;
     totais_por_orgao: ObservabilidadeTotalPorOrgao[];
-    evolucao: Array<Record<string, string | number>>;
+    evolucao: Array<Record<string, ObservabilidadeChartRowValue>>;
   };
   inclusao_vs_processamento: {
     resumo: ObservabilidadeResumo;
-    evolucao: Array<Record<string, string | number>>;
+    evolucao: Array<Record<string, ObservabilidadeChartRowValue>>;
   };
   status_por_orgao: {
     resumo: ObservabilidadeResumo;
     totais_por_orgao: ObservabilidadeTotalPorOrgao[];
-    evolucao: Array<Record<string, string | number>>;
+    evolucao: Array<Record<string, ObservabilidadeChartRowValue>>;
   };
   erro?: string;
 }

@@ -27,6 +27,11 @@ import {
   tooltipStyle,
 } from "./homeDashboardShared";
 
+type FluxoTooltipOrgaoEntrada = {
+  orgao: string;
+  quantidade: number;
+};
+
 function getTimelineXAxisProps(periodKey: string) {
   if (periodKey === "48h" || periodKey === "72h") {
     return {
@@ -122,8 +127,8 @@ function FluxoBarTooltip({
   }
 
   const row = payload?.[0]?.payload;
-  const stackItems = Array.isArray(row?.stackItems)
-    ? (row.stackItems as Array<{ name: string; value: number; color: string }>)
+  const stackItems = Array.isArray((row as ChartRow & { stackItems?: unknown[] } | undefined)?.stackItems)
+    ? (((row as ChartRow & { stackItems?: unknown[] }).stackItems ?? []) as Array<{ name: string; value: number; color: string }>)
     : [];
 
   if (!stackItems.length) {
@@ -260,6 +265,58 @@ function StatusTimelineTooltip({
   );
 }
 
+function FluxoLineTooltip({
+  active,
+  payload,
+  metricScope,
+  colorMap,
+}: {
+  active?: boolean;
+  payload?: Array<{ color?: string; dataKey?: string; name?: string; value?: number | string; payload?: ChartRow }>;
+  metricScope: MetricScope;
+  colorMap: Map<string, string>;
+}) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+
+  const row = payload[0]?.payload;
+  if (!row) {
+    return null;
+  }
+
+  const entradas = payload.find((item) => item.dataKey?.toString().includes("inclusoes"));
+  const processamentos = payload.find((item) => item.dataKey?.toString().includes("processamentos"));
+  const entradaValor = typeof entradas?.value === "number" ? entradas.value : Number(entradas?.value ?? 0);
+  const processamentosValor = typeof processamentos?.value === "number" ? processamentos.value : Number(processamentos?.value ?? 0);
+  const processamentosLabel = metricScope === "registros" ? "Registros processados" : "Autos processados";
+  const orgaosEntrada = Array.isArray(row.orgaos_entrada) ? (row.orgaos_entrada as FluxoTooltipOrgaoEntrada[]) : [];
+
+  return (
+    <div style={tooltipStyle}>
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-slate-100">{String(row.label ?? "")}</p>
+        <p className="text-sm font-medium text-[#5b8cff]">Entrada: {Number.isFinite(entradaValor) ? entradaValor : 0}</p>
+        <p className="text-sm font-medium text-[#18c29c]">
+          {processamentosLabel}: {Number.isFinite(processamentosValor) ? processamentosValor : 0}
+        </p>
+      </div>
+      {orgaosEntrada.length ? (
+        <div className="mt-3 border-t border-slate-700/70 pt-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Unidades com entrada</p>
+          <div className="space-y-1.5">
+            {orgaosEntrada.map((item) => (
+              <p key={`${item.orgao}-${item.quantidade}`} style={{ color: colorMap.get(item.orgao) ?? "#e2e8f0" }} className="text-sm font-medium">
+                {item.orgao}: {item.quantidade}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function FluxoTimelineChart({
   data,
   mode,
@@ -279,6 +336,7 @@ export function FluxoTimelineChart({
   const processamentosLabel = metricScope === "registros" ? "Registros processados" : "Autos processados";
   const dayChangeMarkers = getDayChangeMarkers(data, periodKey);
   const xAxisProps = getTimelineXAxisProps(periodKey);
+  const lineTooltipColorMap = buildFluxoColorMap(buildFluxoStackOrder(data, metricScope === "registros" ? "__inclusoes_registros" : "__inclusoes_processos"));
 
   if (mode === "bar") {
     const inclusoesSuffix = metricScope === "registros" ? "__inclusoes_registros" : "__inclusoes_processos";
@@ -334,7 +392,7 @@ export function FluxoTimelineChart({
           {...xAxisProps}
         />
         <YAxis stroke="#8ea3c3" tick={{ fill: "#8ea3c3", fontSize: 12 }} />
-        <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e2e8f0" }} labelFormatter={formatTooltipLabel} />
+        <Tooltip content={<FluxoLineTooltip metricScope={metricScope} colorMap={lineTooltipColorMap} />} />
         {dayChangeMarkers.map((bucket) => (
           <ReferenceLine key={`day-${bucket}`} x={bucket} stroke="#6d5efc" strokeDasharray="5 5" strokeOpacity={0.9} />
         ))}

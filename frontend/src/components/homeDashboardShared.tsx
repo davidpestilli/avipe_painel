@@ -1,13 +1,13 @@
 import type { ReactElement, ReactNode } from "react";
 import { ResponsiveContainer } from "recharts";
-import type { ObservabilidadeResponse, ObservabilidadeTotalPorOrgao } from "../types";
+import type { ObservabilidadeChartRowValue, ObservabilidadeResponse, ObservabilidadeTotalPorOrgao } from "../types";
 
 export type ChartMode = "line" | "bar";
 export type MetricScope = "registros" | "processos";
 export type StatusLayerMode = "both" | "processados" | "juntados";
 export type HomeChartTab = "fluxo" | "status";
 export type FluxoBreakdownMode = "entrada" | "processamento";
-export type ChartRow = Record<string, string | number>;
+export type ChartRow = Record<string, ObservabilidadeChartRowValue>;
 
 export const PERIOD_OPTIONS = [
   { value: "today", label: "Hoje" },
