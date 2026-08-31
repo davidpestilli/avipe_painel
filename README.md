@@ -17,6 +17,7 @@ Em 21 de agosto de 2026, o sistema opera com este stack:
 - leitura por `registros` ou por `processos`
 - graficos em `linhas` ou `barras`
 - seletor de ambiente para alternancia entre `app`, `hml` e `prd`
+- controle compartilhado para exibir ou ocultar o orgao de teste `SUPORTE` em todo o frontend
 - analises de:
   - envios ao localizador por orgao
   - inclusao no localizador x processamento
@@ -92,6 +93,7 @@ avipe_painel/
 |-- templates/
 |-- config.ini.example
 |-- config.local.ini.example
+|-- painel_preferences.json.example
 |-- iniciar_avipe_painel.bat
 |-- PROMPT_INSTALACAO_AGENTE_IA.md
 |-- preparar_avipe_painel_nova_maquina.bat
@@ -114,6 +116,7 @@ avipe_painel/
 - `GET /health/`
 - `GET /api/dashboard/`
 - `GET /api/configuracoes/?ambiente=<app|hml|prd>`
+- `POST /api/configuracoes/orgao-suporte/`
 - `GET /api/observabilidade/?periodo=<recorte>`
 - `GET /api/pesquisas/`
 - `GET /api/pesquisas/exportar/?modo=<agrupada|linhas>`
@@ -252,6 +255,21 @@ Na aba `Configuracoes`, a interface passa a usar o ambiente selecionado em:
 - `Home`
 - `Pesquisa`
 - `Detalhe`
+
+Tambem ha um toggle para exibir ou ocultar o orgao de teste `SUPORTE`. Essa preferencia e compartilhada entre todos os usuarios do mesmo servidor e fica em `painel_preferences.json` na raiz do projeto.
+
+Comportamento padrao:
+
+- `SUPORTE` vem **oculto**
+- quando oculto, o orgao deixa de aparecer em graficos, filtros, totais, exportacao e detalhe
+- filtros `sig_orgao=SUPORTE` na URL sao limpos automaticamente
+- a preferencia pode ser versionada a partir de `painel_preferences.json.example`
+
+Para inicializar o arquivo em uma maquina nova:
+
+```powershell
+copy painel_preferences.json.example painel_preferences.json
+```
 
 ### Certificado local para MySQL
 
@@ -410,6 +428,7 @@ Para ambientes especificos, o painel tambem aceita:
 ## Arquivos principais
 
 - `pesquisas/services.py`: acesso ao banco e consultas operacionais
+- `pesquisas/preferences.py`: preferencias compartilhadas do painel
 - `pesquisas/analytics.py`: agregacoes de observabilidade
 - `pesquisas/views.py`: shell React e endpoints JSON
 - `frontend/src/App.tsx`: interface React ativa
@@ -417,7 +436,7 @@ Para ambientes especificos, o painel tambem aceita:
 - `frontend/src/components/SearchPage.tsx`: filtros da pesquisa e acao de exportacao
 - `frontend/src/types.ts`: contratos do frontend
 - `frontend/src/components/AppShell.tsx`: cabecalho compacto e overlay de carregamento
-- `frontend/src/components/SettingsPage.tsx`: seletor e resumo do ambiente ativo
+- `frontend/src/components/SettingsPage.tsx`: seletor de ambiente e toggle do orgao `SUPORTE`
 - `frontend/src/components/HomeDashboard.tsx`: orquestracao da Home
 - `frontend/src/components/HomeDashboardHeader.tsx`: cabecalho, KPIs e resumo da Home
 - `frontend/src/components/homeDashboardCharts.tsx`: graficos da Home
@@ -435,6 +454,7 @@ Coberto pelo `.gitignore`:
 - `.venv/`
 - `db.sqlite3`
 - `config.local.ini`
+- `painel_preferences.json`
 - `consultas/`
 - `*.log`
 - `frontend/node_modules/`
@@ -486,6 +506,7 @@ O fluxo atual foi validado localmente com:
 - inicializacao do `preparar_avipe_painel_nova_maquina.bat` com criacao de log em `logs\`
 - leitura por `config.ini` local
 - leitura da API `GET /api/configuracoes/` para `app`
+- toggle compartilhado de exibicao do orgao `SUPORTE`
 - carregamento da Home e da Pesquisa
 - carregamento da API de observabilidade
 

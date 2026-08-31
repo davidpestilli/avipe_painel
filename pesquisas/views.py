@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -10,8 +11,11 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from .analytics import buscar_observabilidade
+from .preferences import definir_exibir_orgao_suporte, obter_preferencias
 from .services import (
     buscar_metricas,
     buscar_registro_detalhe,
@@ -23,7 +27,9 @@ from .services import (
     listar_ultimos_registros,
     listar_usuarios_logados,
     obter_info_banco,
+    registro_orgao_suporte_oculto,
     resolver_ambiente_request,
+    sanitizar_filtro_orgao_suporte,
 )
 
 _UTC = ZoneInfo("UTC")
@@ -109,20 +115,42 @@ def api_observabilidade(request: HttpRequest) -> JsonResponse:
 def api_configuracoes(request: HttpRequest) -> JsonResponse:
     ambiente = resolver_ambiente_request(request)
     try:
+        preferencias = obter_preferencias()
         return JsonResponse(
             {
                 "ambiente_ativo": ambiente,
                 "ambientes": listar_ambientes_disponiveis(),
                 "info_banco": obter_info_banco(ambiente),
+                "exibir_orgao_suporte": preferencias["exibir_orgao_suporte"],
             }
         )
     except Exception as exc:  # pragma: no cover
         return JsonResponse({"erro": str(exc)}, status=500)
 
 
+@csrf_exempt
+@require_POST
+def api_configuracoes_orgao_suporte(request: HttpRequest) -> JsonResponse:
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse({"erro": "JSON invalido."}, status=400)
+
+    if "exibir_orgao_suporte" not in payload:
+        return JsonResponse({"erro": "Informe exibir_orgao_suporte."}, status=400)
+
+    try:
+        preferencias = definir_exibir_orgao_suporte(bool(payload["exibir_orgao_suporte"]))
+        return JsonResponse({"exibir_orgao_suporte": preferencias["exibir_orgao_suporte"]})
+    except OSError as exc:
+        return JsonResponse({"erro": f"Nao foi possivel salvar a preferencia: {exc}"}, status=500)
+    except Exception as exc:  # pragma: no cover
+        return JsonResponse({"erro": str(exc)}, status=500)
+
+
 def api_lista_pesquisas(request: HttpRequest) -> JsonResponse:
     ambiente = resolver_ambiente_request(request)
-    filtros = _extrair_filtros_pesquisa(request)
+    filtros = sanitizar_filtro_orgao_suporte(_extrair_filtros_pesquisa(request))
     pagina = max(1, int(request.GET.get("pagina", "1") or "1"))
     try:
         paginacao = _normalizar_paginacao(
@@ -164,7 +192,7 @@ def api_detalhe_pesquisa(request: HttpRequest) -> JsonResponse:
     except Exception as exc:  # pragma: no cover
         return JsonResponse({"erro": str(exc)}, status=500)
 
-    if not registro:
+    if not registro or registro_orgao_suporte_oculto(registro):
         return JsonResponse({"erro": "Registro nao encontrado com os parametros informados."}, status=404)
 
     return JsonResponse({"ambiente_ativo": ambiente, "registro": _serializar_registro(registro)})
@@ -172,7 +200,7 @@ def api_detalhe_pesquisa(request: HttpRequest) -> JsonResponse:
 
 def api_exportar_pesquisas(request: HttpRequest) -> HttpResponse:
     ambiente = resolver_ambiente_request(request)
-    filtros = _extrair_filtros_pesquisa(request)
+    filtros = sanitizar_filtro_orgao_suporte(_extrair_filtros_pesquisa(request))
     modo = request.GET.get("modo", "agrupada").strip().lower()
 
     try:

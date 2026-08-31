@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { exportLista, fetchConfiguracoes, fetchDashboard, fetchDetalhe, fetchLista, fetchObservabilidade } from "./api";
+import { exportLista, fetchConfiguracoes, fetchDashboard, fetchDetalhe, fetchLista, fetchObservabilidade, updateExibirOrgaoSuporte } from "./api";
 import { CompactHeader, LoadingOverlay } from "./components/AppShell";
 import { DetailPage } from "./components/DetailPage";
 import {
@@ -30,6 +30,7 @@ import {
   formatText,
   getViewFromPath,
   navigateTo,
+  sanitizeSuporteFilter,
   type RouteView,
 } from "./utils/appHelpers";
 
@@ -83,6 +84,7 @@ function App() {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loadingExport, setLoadingExport] = useState(false);
+  const [savingOrgaoSuporte, setSavingOrgaoSuporte] = useState(false);
   const [error, setError] = useState("");
   const [returnQuery, setReturnQuery] = useState("");
   const [periodo, setPeriodo] = useState("today");
@@ -126,7 +128,8 @@ function App() {
     try {
       const ambienteInicial = localStorage.getItem(STORAGE_KEY) || "app";
       setSelectedAmbiente(ambienteInicial);
-      await Promise.all([loadConfiguracoes(ambienteInicial), loadDashboard(ambienteInicial), syncFromLocation(false, ambienteInicial)]);
+      const config = await loadConfiguracoes(ambienteInicial);
+      await Promise.all([loadDashboard(ambienteInicial), syncFromLocation(false, ambienteInicial, config.exibir_orgao_suporte)]);
     } finally {
       setLoading(false);
     }
@@ -136,6 +139,7 @@ function App() {
     const payload = await fetchConfiguracoes(ambiente);
     setConfiguracoes(payload);
     setAmbientes(payload.ambientes);
+    return payload;
   }
 
   async function loadDashboard(ambiente: string) {
@@ -155,7 +159,7 @@ function App() {
     }
   }
 
-  async function syncFromLocation(updateHistory: boolean, ambiente = selectedAmbiente) {
+  async function syncFromLocation(updateHistory: boolean, ambiente = selectedAmbiente, exibirOrgaoSuporte = configuracoes?.exibir_orgao_suporte ?? false) {
     const currentUrl = new URL(window.location.href);
     const view = getViewFromPath(currentUrl.pathname);
 
@@ -168,9 +172,19 @@ function App() {
     }
 
     if (view === "lista") {
-      const nextFilters = applyFiltersFromParams(currentUrl.searchParams, FILTER_KEYS, EMPTY_FILTERS);
+      const nextFilters = sanitizeSuporteFilter(
+        applyFiltersFromParams(currentUrl.searchParams, FILTER_KEYS, EMPTY_FILTERS),
+        exibirOrgaoSuporte,
+      );
+      const pagina = Math.max(1, Number(currentUrl.searchParams.get("pagina") || "1"));
+      const queryString = buildQueryString(nextFilters, FILTER_KEYS, pagina);
       setFilters(nextFilters);
-      await loadLista(currentUrl.searchParams.toString(), ambiente, updateHistory ? currentUrl.pathname : undefined);
+
+      if (queryString !== currentUrl.searchParams.toString()) {
+        window.history.replaceState({}, "", `${currentUrl.pathname}${queryString ? `?${queryString}` : ""}`);
+      }
+
+      await loadLista(queryString, ambiente, updateHistory ? currentUrl.pathname : undefined);
       return;
     }
 
@@ -222,7 +236,10 @@ function App() {
   }
 
   async function handleGoToLista(page = 1, overrideFilters?: FilterState, ambiente = selectedAmbiente) {
-    const nextFilters = overrideFilters ?? filters;
+    const nextFilters = sanitizeSuporteFilter(
+      overrideFilters ?? filters,
+      configuracoes?.exibir_orgao_suporte ?? false,
+    );
     const queryString = buildQueryString(nextFilters, FILTER_KEYS, page);
 
     navigateTo("/pesquisas/", queryString);
@@ -261,7 +278,8 @@ function App() {
     setError("");
     setLoading(true);
     try {
-      await Promise.all([loadConfiguracoes(selectedAmbiente), loadDashboard(selectedAmbiente), syncFromLocation(false, selectedAmbiente)]);
+      const config = await loadConfiguracoes(selectedAmbiente);
+      await Promise.all([loadDashboard(selectedAmbiente), syncFromLocation(false, selectedAmbiente, config.exibir_orgao_suporte)]);
     } finally {
       setLoading(false);
     }
@@ -276,9 +294,39 @@ function App() {
     setError("");
     setLoading(true);
     try {
-      await Promise.all([loadConfiguracoes(ambiente), loadDashboard(ambiente), syncFromLocation(false, ambiente)]);
+      const config = await loadConfiguracoes(ambiente);
+      await Promise.all([loadDashboard(ambiente), syncFromLocation(false, ambiente, config.exibir_orgao_suporte)]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleExibirOrgaoSuporteChange(exibir: boolean) {
+    setSavingOrgaoSuporte(true);
+    setError("");
+    try {
+      const payload = await updateExibirOrgaoSuporte(exibir);
+      setConfiguracoes((current) => (current ? { ...current, exibir_orgao_suporte: payload.exibir_orgao_suporte } : current));
+      setObservabilidade(null);
+      setLista(null);
+      setDetalhe(null);
+
+      const nextFilters = sanitizeSuporteFilter(filters, payload.exibir_orgao_suporte);
+      setFilters(nextFilters);
+
+      await Promise.all([loadDashboard(selectedAmbiente), loadObservabilidade(periodo, selectedAmbiente)]);
+
+      if (currentView === "lista") {
+        const queryString = buildQueryString(nextFilters, FILTER_KEYS, lista?.paginacao.pagina ?? 1);
+        window.history.replaceState({}, "", `/pesquisas/${queryString ? `?${queryString}` : ""}`);
+        await loadLista(queryString, selectedAmbiente);
+      } else {
+        await syncFromLocation(false, selectedAmbiente, payload.exibir_orgao_suporte);
+      }
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Falha ao salvar a preferencia do orgao SUPORTE.");
+    } finally {
+      setSavingOrgaoSuporte(false);
     }
   }
 
@@ -391,7 +439,10 @@ function App() {
               ambientes={ambientes}
               ambienteAtivo={selectedAmbiente}
               infoBanco={configuracoes?.info_banco ?? dashboard?.info_banco ?? null}
+              exibirOrgaoSuporte={configuracoes?.exibir_orgao_suporte ?? false}
+              savingOrgaoSuporte={savingOrgaoSuporte}
               onAmbienteChange={(value) => void handleAmbienteChange(value)}
+              onExibirOrgaoSuporteChange={(value) => void handleExibirOrgaoSuporteChange(value)}
             />
           ) : null}
         </div>

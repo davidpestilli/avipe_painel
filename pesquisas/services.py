@@ -13,6 +13,7 @@ import mysql.connector
 from django.conf import settings
 from django.http import HttpRequest
 
+from .preferences import ORGAO_SUPORTE, orgao_suporte_visivel
 from .secrets import SegredoError, resolver_segredos
 
 AMBIENTE_PADRAO = "app"
@@ -44,6 +45,30 @@ class Paginacao:
 def _normalizar_processo(valor: Any) -> str:
     texto = str(valor or "").strip()
     return texto or "Sem processo"
+
+
+def _anexar_exclusao_orgao_suporte(where_sql: str, params: list[Any]) -> tuple[str, list[Any]]:
+    if orgao_suporte_visivel():
+        return where_sql, params
+
+    clausula = "sig_orgao <> %s"
+    if where_sql:
+        return f"{where_sql} AND {clausula}", [*params, ORGAO_SUPORTE]
+    return f"WHERE {clausula}", [ORGAO_SUPORTE]
+
+
+def sanitizar_filtro_orgao_suporte(filtros: dict[str, str]) -> dict[str, str]:
+    if orgao_suporte_visivel():
+        return filtros
+    if filtros.get("sig_orgao", "").strip().upper() == ORGAO_SUPORTE:
+        return {**filtros, "sig_orgao": ""}
+    return filtros
+
+
+def registro_orgao_suporte_oculto(registro: dict[str, Any] | None) -> bool:
+    if not registro or orgao_suporte_visivel():
+        return False
+    return (registro.get("sig_orgao") or "").strip().upper() == ORGAO_SUPORTE
 
 
 def _construir_filtros_where(filtros: dict[str, str]) -> tuple[str, list[Any]]:
@@ -95,7 +120,7 @@ def _construir_filtros_where(filtros: dict[str, str]) -> tuple[str, list[Any]]:
         where.append("juntado IS NULL")
 
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-    return where_sql, params
+    return _anexar_exclusao_orgao_suporte(where_sql, params)
 
 
 def normalizar_ambiente(ambiente: str | None) -> str:
@@ -329,40 +354,47 @@ def _executar_metricas(
 
 def buscar_metricas(ambiente: str = AMBIENTE_PADRAO) -> dict[str, Any]:
     identidade = obter_identidade_execucao()
+    where_globais, params_globais = _anexar_exclusao_orgao_suporte("", [])
+    where_maquina, params_maquina = _anexar_exclusao_orgao_suporte(
+        "WHERE ip_cliente = %s AND usuario_logado = %s",
+        [identidade["ip_cliente"], identidade["usuario_logado"]],
+    )
     return {
-        "globais": _executar_metricas(ambiente=ambiente),
-        "maquina_usuario": _executar_metricas(
-            " WHERE ip_cliente = %s AND usuario_logado = %s",
-            (identidade["ip_cliente"], identidade["usuario_logado"]),
-            ambiente=ambiente,
-        ),
+        "globais": _executar_metricas(where_globais, tuple(params_globais), ambiente=ambiente),
+        "maquina_usuario": _executar_metricas(where_maquina, tuple(params_maquina), ambiente=ambiente),
     }
 
 
 def listar_ultimos_registros(limite: int = 10, ambiente: str = AMBIENTE_PADRAO) -> list[dict[str, Any]]:
-    sql = """
+    where_sql, params = _anexar_exclusao_orgao_suporte("", [])
+    sql = f"""
         SELECT id, nuprocesso, cpf, sig_orgao, ip_cliente, usuario_logado, processado, juntado,
                data_insercao, data_processamento, data_inclusao_localizador
         FROM avipe_pesquisa_endereco
+        {where_sql}
         ORDER BY data_insercao DESC
         LIMIT %s
     """
     with abrir_conexao(ambiente) as conn:
         with conn.cursor(dictionary=True) as cursor:
-            cursor.execute(sql, (limite,))
+            cursor.execute(sql, [*params, limite])
             return list(cursor.fetchall())
 
 
 def listar_siglas_orgaos(ambiente: str = AMBIENTE_PADRAO) -> list[str]:
-    sql = """
+    where_sql, params = _anexar_exclusao_orgao_suporte(
+        "WHERE sig_orgao IS NOT NULL AND sig_orgao <> ''",
+        [],
+    )
+    sql = f"""
         SELECT DISTINCT sig_orgao
         FROM avipe_pesquisa_endereco
-        WHERE sig_orgao IS NOT NULL AND sig_orgao <> ''
+        {where_sql}
         ORDER BY sig_orgao
     """
     with abrir_conexao(ambiente) as conn:
         with conn.cursor() as cursor:
-            cursor.execute(sql)
+            cursor.execute(sql, params)
             return [linha[0] for linha in cursor.fetchall()]
 
 

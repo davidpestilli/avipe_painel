@@ -37,6 +37,7 @@ export interface ConfiguracoesResponse {
   ambiente_ativo: string;
   ambientes: AmbienteDisponivel[];
   info_banco: DashboardData["info_banco"];
+  exibir_orgao_suporte: boolean;
   erro?: string;
 }
 

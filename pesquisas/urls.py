@@ -8,6 +8,7 @@ urlpatterns = [
     path("health/", views.health, name="health"),
     path("api/dashboard/", views.api_dashboard, name="api_dashboard"),
     path("api/configuracoes/", views.api_configuracoes, name="api_configuracoes"),
+    path("api/configuracoes/orgao-suporte/", views.api_configuracoes_orgao_suporte, name="api_configuracoes_orgao_suporte"),
     path("api/observabilidade/", views.api_observabilidade, name="api_observabilidade"),
     path("api/pesquisas/", views.api_lista_pesquisas, name="api_lista"),
     path("api/pesquisas/exportar/", views.api_exportar_pesquisas, name="api_exportar"),

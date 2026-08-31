@@ -29,6 +29,17 @@ export async function fetchConfiguracoes(ambiente: string): Promise<Configuracoe
   return parseJson<ConfiguracoesResponse>(response);
 }
 
+export async function updateExibirOrgaoSuporte(exibir: boolean): Promise<{ exibir_orgao_suporte: boolean }> {
+  const response = await fetch("/api/configuracoes/orgao-suporte/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ exibir_orgao_suporte: exibir }),
+  });
+  return parseJson<{ exibir_orgao_suporte: boolean }>(response);
+}
+
 export async function fetchObservabilidade(periodo: string, ambiente: string): Promise<ObservabilidadeResponse> {
   const params = new URLSearchParams({ periodo });
   const response = await fetch(withAmbiente("/api/observabilidade/", ambiente, params));

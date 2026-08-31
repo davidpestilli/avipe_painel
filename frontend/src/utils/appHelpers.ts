@@ -1,5 +1,19 @@
 export type RouteView = "home" | "lista" | "detalhe" | "configuracoes";
 
+export const ORGAO_SUPORTE = "SUPORTE";
+
+export function sanitizeSuporteFilter<T extends { sig_orgao: string }>(state: T, exibirOrgaoSuporte: boolean): T {
+  if (exibirOrgaoSuporte) {
+    return state;
+  }
+
+  if (state.sig_orgao.trim().toUpperCase() === ORGAO_SUPORTE) {
+    return { ...state, sig_orgao: "" };
+  }
+
+  return state;
+}
+
 export function getViewFromPath(pathname: string): RouteView {
   if (pathname.startsWith("/pesquisas/detalhe/")) {
     return "detalhe";

@@ -5,6 +5,7 @@ config.ini
 db.sqlite3
 staticfiles/
 config.local.ini
+painel_preferences.json
 .secrets/
 consultas/
 *.log

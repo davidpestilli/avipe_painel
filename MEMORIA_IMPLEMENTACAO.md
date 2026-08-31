@@ -196,6 +196,36 @@ Nesta extensao da aba `Pesquisa` foram entregues:
   - a importacao da biblioteca ocorre apenas no fluxo de exportacao
   - a ausencia da dependencia nao derruba mais a subida do painel
 
+### Fase 8.3. Ocultacao compartilhada do orgao de teste SUPORTE
+
+Nesta extensao da aba `Configuracoes` foram entregues:
+
+- toggle para exibir ou ocultar o orgao `SUPORTE` em todo o frontend
+- preferencia compartilhada entre todos os usuarios do mesmo servidor
+- persistencia em `painel_preferences.json` na raiz do projeto
+- padrao desativado quando o arquivo ainda nao existe
+- arquivo de exemplo versionado:
+  - `painel_preferences.json.example`
+- nova rota de backend:
+  - `POST /api/configuracoes/orgao-suporte/`
+- campo adicional em:
+  - `GET /api/configuracoes/`
+- exclusao centralizada do orgao `SUPORTE` no backend quando a preferencia estiver desativada:
+  - metricas globais e locais
+  - observabilidade e totais por orgao
+  - filtros e listagem de pesquisa
+  - exportacao Excel
+  - detalhe por registro
+  - ultimos registros do dashboard
+- limpeza automatica de filtro `sig_orgao=SUPORTE` na URL e nas consultas quando o orgao estiver oculto
+- modulo dedicado:
+  - `pesquisas/preferences.py`
+- helpers de exclusao em:
+  - `pesquisas/services.py`
+  - `pesquisas/analytics.py`
+- toggle na interface em:
+  - `frontend/src/components/SettingsPage.tsx`
+
 ## Decisoes de arquitetura
 
 ### 1. Backend Django preservado
@@ -217,6 +247,7 @@ O React passou a concentrar:
 - alternancia de leitura por `registros` e `processos`
 - filtros e navegacao de consulta
 - selecao do ambiente ativo consumido pelas APIs
+- toggle compartilhado de exibicao do orgao `SUPORTE`
 
 ### 3. Contrato de API preservado e ampliado
 
@@ -231,6 +262,7 @@ Foram adicionadas:
 
 - `GET /api/observabilidade/`
 - `GET /api/configuracoes/`
+- `POST /api/configuracoes/orgao-suporte/`
 - `GET /api/pesquisas/exportar/`
 
 ### 4. Legado removido do fluxo ativo
@@ -323,6 +355,7 @@ avipe_painel/
 |-- iniciar_avipe_painel.bat
 |-- PROMPT_INSTALACAO_AGENTE_IA.md
 |-- preparar_avipe_painel_nova_maquina.bat
+|-- painel_preferences.json.example
 |-- manage.py
 |-- requirements.txt
 |-- MEMORIA_IMPLEMENTACAO.md
@@ -375,6 +408,14 @@ Concentra:
 - classificacao de falhas de rede e dependencias
 - checklist final de prontidao
 - relatorio final tecnico e executivo
+
+### `pesquisas/preferences.py`
+
+Concentra:
+
+- leitura e gravacao de preferencias compartilhadas do painel
+- estado padrao de exibicao do orgao `SUPORTE`
+- persistencia em `painel_preferences.json`
 
 ### `pesquisas/analytics.py`
 
@@ -440,6 +481,7 @@ Concentra:
 - seletor do ambiente ativo
 - resumo dos ambientes disponiveis
 - exibicao do host, da base e do Key Vault do ambiente selecionado
+- toggle compartilhado para exibir ou ocultar o orgao `SUPORTE`
 
 ### `frontend/src/components/HomeDashboard.tsx`
 
@@ -464,21 +506,24 @@ Concentra:
 - grafico de processamento x juntada
 - seletor de orgaos
 
-## Validacoes realizadas ate 28 de agosto de 2026
+## Validacoes realizadas ate 30 de agosto de 2026
 
 Foram validados com sucesso:
 
 - `npm run build`
 - `python manage.py check`
+- `python manage.py test pesquisas.tests`
 - `GET /health/`
 - `GET /api/dashboard/`
 - `GET /api/configuracoes/?ambiente=app`
+- `POST /api/configuracoes/orgao-suporte/`
 - `GET /api/observabilidade/`
 - `GET /api/pesquisas/`
 - `GET /api/pesquisas/exportar/`
 - abertura da Home em `http://127.0.0.1:8000/home/`
 - abertura da Pesquisa
 - abertura da aba `Configuracoes`
+- toggle compartilhado de exibicao do orgao `SUPORTE`
 - tooltip de sanamento no grafico Entrada x Processamento
 - destaque de orgaos com diferenca processado x juntado
 - geracao de planilha Excel por `Processos`
