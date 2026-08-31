@@ -371,6 +371,14 @@ Fluxo recomendado:
 .\iniciar_avipe_painel.bat
 ```
 
+O inicializador agora detecta quando o build do frontend ficou desatualizado apos um `git pull`.
+
+Com isso:
+
+- verifica se `frontend/dist` esta atrasado em relacao aos arquivos-fonte do React
+- executa `npm run build` automaticamente quando encontra diferencas
+- interrompe a subida com mensagem clara se a reconstrucao falhar
+
 Depois, abra:
 
 - `http://127.0.0.1:8000/`
@@ -442,7 +450,7 @@ Para ambientes especificos, o painel tambem aceita:
 - `frontend/src/components/homeDashboardCharts.tsx`: graficos da Home
 - `frontend/src/components/homeDashboardShared.tsx`: infraestrutura compartilhada da Home
 - `frontend/package.json`: dependencias e scripts do frontend
-- `iniciar_avipe_painel.bat`: inicializacao rapida
+- `iniciar_avipe_painel.bat`: inicializacao rapida com deteccao e reconstrucao automatica do frontend desatualizado
 - `preparar_avipe_painel_nova_maquina.bat`: bootstrap de maquina nova com log detalhado em `logs\`
 - `PROMPT_INSTALACAO_AGENTE_IA.md`: roteiro operacional para agente de IA executar e acompanhar a instalacao
 - `MEMORIA_IMPLEMENTACAO.md`: memoria tecnica do projeto
@@ -495,6 +503,14 @@ cd frontend
 npm run build
 ```
 
+Ou simplesmente:
+
+```powershell
+.\iniciar_avipe_painel.bat
+```
+
+Se o build estiver desatualizado, o proprio inicializador tenta reconstruir o frontend antes de subir o painel.
+
 ## Validacao do fluxo local
 
 O fluxo atual foi validado localmente com:
@@ -504,6 +520,7 @@ O fluxo atual foi validado localmente com:
 - `python manage.py check`
 - `GET /api/pesquisas/exportar/`
 - inicializacao do `preparar_avipe_painel_nova_maquina.bat` com criacao de log em `logs\`
+- deteccao e reconstrucao automatica de frontend desatualizado no `iniciar_avipe_painel.bat`
 - leitura por `config.ini` local
 - leitura da API `GET /api/configuracoes/` para `app`
 - toggle compartilhado de exibicao do orgao `SUPORTE`

@@ -226,6 +226,16 @@ Nesta extensao da aba `Configuracoes` foram entregues:
 - toggle na interface em:
   - `frontend/src/components/SettingsPage.tsx`
 
+### Fase 8.4. Reconstrucao automatica do frontend no inicializador
+
+Nesta extensao operacional foram entregues:
+
+- deteccao de build React desatualizado no `iniciar_avipe_painel.bat`
+- comparacao entre `frontend/dist` e os arquivos-fonte do frontend apos atualizacoes do repositorio
+- reconstrucao automatica com `npm run build` quando houver divergencia
+- interrupcao da inicializacao com mensagem orientativa se a reconstrucao falhar
+- reducao do risco de subir o painel com frontend antigo apos `git pull`
+
 ## Decisoes de arquitetura
 
 ### 1. Backend Django preservado
@@ -399,6 +409,18 @@ Hoje concentra:
 - orientacao operacional sobre `config.ini`
 - alerta sobre dependencia de Azure Key Vault
 
+### `iniciar_avipe_painel.bat`
+
+Hoje concentra:
+
+- verificacao de `.venv`
+- verificacao de `config.ini`
+- validacao da existencia de `frontend/dist`
+- deteccao de frontend desatualizado por timestamp
+- reconstrucao automatica do build React quando necessario
+- `manage.py check`
+- subida do servidor Django
+
 ### `PROMPT_INSTALACAO_AGENTE_IA.md`
 
 Concentra:
@@ -506,7 +528,7 @@ Concentra:
 - grafico de processamento x juntada
 - seletor de orgaos
 
-## Validacoes realizadas ate 30 de agosto de 2026
+## Validacoes realizadas ate 31 de agosto de 2026
 
 Foram validados com sucesso:
 
@@ -528,6 +550,7 @@ Foram validados com sucesso:
 - destaque de orgaos com diferenca processado x juntado
 - geracao de planilha Excel por `Processos`
 - validacao de subida do Django sem importacao antecipada de `openpyxl`
+- execucao de `iniciar_avipe_painel.bat` com deteccao de build React atualizado
 
 Tambem foi validado:
 

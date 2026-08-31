@@ -53,6 +53,12 @@ if not exist "frontend\dist\index.html" (
     exit /b 1
 )
 
+call :ensureFrontendBuildAtualizado
+if errorlevel 1 (
+    pause
+    exit /b 1
+)
+
 if exist "config.local.ini" (
     echo [OK] Encontrado override local: config.local.ini
 ) else (
@@ -101,6 +107,42 @@ echo [INFO] Abra no navegador: http://127.0.0.1:8000/
 echo.
 ".venv\Scripts\python.exe" manage.py runserver
 exit /b %errorlevel%
+
+:ensureFrontendBuildAtualizado
+set "FRONTEND_REBUILD_REQUIRED="
+for /f %%I in ('powershell -NoProfile -Command "$dist = Join-Path (Get-Location) 'frontend\\dist\\index.html'; if (-not (Test-Path $dist)) { 'missing'; exit 0 }; $distTime = (Get-Item $dist).LastWriteTimeUtc; $paths = @('frontend\\src','frontend\\index.html','frontend\\package.json','frontend\\package-lock.json','frontend\\tsconfig.json','frontend\\tsconfig.app.json','frontend\\tsconfig.node.json','frontend\\tailwind.config.js','frontend\\postcss.config.js','frontend\\vite.config.ts','frontend\\vite.config.js'); foreach ($path in $paths) { if (Test-Path $path) { $items = if ((Get-Item $path).PSIsContainer) { Get-ChildItem $path -Recurse -File } else { Get-Item $path }; foreach ($item in $items) { if ($item.LastWriteTimeUtc -gt $distTime) { 'stale'; exit 0 } } } }; 'ok'"') do set "FRONTEND_REBUILD_REQUIRED=%%I"
+
+if /i "%FRONTEND_REBUILD_REQUIRED%"=="ok" (
+    echo [OK] Build do frontend React ja esta atualizado.
+    exit /b 0
+)
+
+if /i "%FRONTEND_REBUILD_REQUIRED%"=="stale" (
+    echo [INFO] Alteracoes no frontend foram detectadas apos o ultimo build.
+    echo [INFO] Reconstruindo frontend React automaticamente...
+    pushd frontend
+    call npm run build
+    set "BUILD_EXIT=%errorlevel%"
+    popd
+    if not "%BUILD_EXIT%"=="0" (
+        echo.
+        echo [ERRO] Falha ao reconstruir o frontend React.
+        echo [ERRO] Verifique se as dependencias do frontend estao instaladas nesta maquina.
+        echo [ERRO] Se necessario, execute preparar_avipe_painel_nova_maquina.bat novamente.
+        exit /b 1
+    )
+    echo [OK] Frontend React reconstruido com sucesso.
+    exit /b 0
+)
+
+if /i "%FRONTEND_REBUILD_REQUIRED%"=="missing" (
+    echo [ERRO] O build do frontend React nao foi encontrado em "frontend\dist".
+    exit /b 1
+)
+
+echo [AVISO] Nao foi possivel determinar se o build do frontend precisa ser atualizado.
+echo [AVISO] O painel tentara iniciar com o build atual.
+exit /b 0
 
 :warnAzure
 echo [AVISO] Nenhum acesso local ao MySQL AVIPE foi identificado.
