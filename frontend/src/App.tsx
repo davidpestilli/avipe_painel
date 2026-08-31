@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { exportLista, fetchConfiguracoes, fetchDashboard, fetchDetalhe, fetchLista, fetchObservabilidade, updateExibirOrgaoSuporte } from "./api";
 import { CompactHeader, LoadingOverlay } from "./components/AppShell";
 import { DetailPage } from "./components/DetailPage";
@@ -98,6 +98,7 @@ function App() {
   const [showPeriodFilters, setShowPeriodFilters] = useState(false);
   const [pesquisaViewMode, setPesquisaViewMode] = useState<PesquisaViewMode>("agrupada");
   const [expandedProcesses, setExpandedProcesses] = useState<string[]>([]);
+  const observabilidadeRequestIdRef = useRef(0);
 
   useEffect(() => {
     void bootstrap();
@@ -148,14 +149,22 @@ function App() {
   }
 
   async function loadObservabilidade(nextPeriodo: string, ambiente: string) {
+    const requestId = observabilidadeRequestIdRef.current + 1;
+    observabilidadeRequestIdRef.current = requestId;
     setLoadingHome(true);
     try {
       const payload = await fetchObservabilidade(nextPeriodo, ambiente);
-      setObservabilidade(payload);
+      if (observabilidadeRequestIdRef.current === requestId) {
+        setObservabilidade(payload);
+      }
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Falha ao carregar os graficos da Home.");
+      if (observabilidadeRequestIdRef.current === requestId) {
+        setError(fetchError instanceof Error ? fetchError.message : "Falha ao carregar os graficos da Home.");
+      }
     } finally {
-      setLoadingHome(false);
+      if (observabilidadeRequestIdRef.current === requestId) {
+        setLoadingHome(false);
+      }
     }
   }
 

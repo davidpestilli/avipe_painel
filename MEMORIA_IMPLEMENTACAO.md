@@ -118,6 +118,10 @@ Nesta fase mais recente foram feitos:
 Nesta fase foram entregues:
 
 - cabecalho unificado `WATCHER AVIPE` com gradiente animado no shell React
+- estabilizacao do grafico `Entrada x Processamento` na Home apos refresh forte:
+  - protecao contra condicao de corrida entre multiplas cargas de `GET /api/observabilidade/`
+  - aplicacao do ultimo payload valido apenas para a requisicao mais recente
+  - manutencao do grafico montado durante `loadingHome`, com overlay visual em vez de desmontagem
 - tooltip do grafico `Entrada x Processamento` na visualizacao `Barras` + `Processamento` com:
   - deficit `(-x)` por orgao e bucket
   - sanamento `(+n data)` calculado registro a registro no backend
@@ -518,6 +522,16 @@ Concentra:
 - navbar interna dos graficos
 - picker de periodo
 - resumo e badge do grafico ativo
+- overlay de atualizacao da observabilidade sem desmontar o grafico em tela
+
+### `frontend/src/App.tsx`
+
+Concentra:
+
+- bootstrap inicial da aplicacao React
+- sincronizacao com rotas `Home`, `Pesquisa`, `Detalhe` e `Configuracoes`
+- cargas de dashboard, observabilidade, lista e detalhe
+- protecao contra resposta atrasada em cargas concorrentes de observabilidade
 
 ### `frontend/src/components/homeDashboardCharts.tsx`
 

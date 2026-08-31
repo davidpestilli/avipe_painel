@@ -367,16 +367,22 @@ export function HomeDashboardHeader({
           </>
         }
       >
-        {loadingHome ? (
-          <div className="flex min-h-[340px] items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-14 w-14 animate-spin rounded-full border-2 border-cyan-300/20 border-t-cyan-300 border-r-fuchsia-400/70" />
-              <p className="text-sm text-slate-300">Atualizando a observabilidade do Watcher AVIPE...</p>
+        <div className="relative min-h-[340px]">
+          {chartChildren}
+          {loadingHome ? (
+            <div className="absolute inset-0 flex items-center justify-center rounded-[24px] bg-slate-950/38 backdrop-blur-[1px]">
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-14 w-14 animate-spin rounded-full border-2 border-cyan-300/20 border-t-cyan-300 border-r-fuchsia-400/70" />
+                <p className="text-sm text-slate-300">Atualizando a observabilidade do Watcher AVIPE...</p>
+              </div>
             </div>
-          </div>
-        ) : (
-          chartChildren
-        )}
+          ) : null}
+          {!chartChildren && !loadingHome ? (
+            <div className="flex min-h-[340px] items-center justify-center text-sm text-slate-400">
+              Nenhum dado de observabilidade disponivel para exibir.
+            </div>
+          ) : null}
+        </div>
       </ChartCard>
 
       <InsightModal
