@@ -1,6 +1,6 @@
 # Prompt de configuracao do modulo de analises
 
-Voce e responsavel por instalar e validar o modulo de analises do Watcher AVIPE em uma nova maquina Windows. Execute o trabalho de ponta a ponta e so considere concluido quando a tabela no Supabase, as credenciais locais e as APIs estiverem funcionais.
+Voce e responsavel por instalar e validar o modulo de analises do Watcher AVIPE em uma nova maquina Windows. Execute o trabalho de ponta a ponta e so considere concluido quando as credenciais locais e as APIs estiverem funcionais.
 
 ## Objetivo
 
@@ -32,14 +32,9 @@ Ele fica isolado no backend `analises/`, no frontend `frontend/src/features/anal
 2. Execute `preparar_avipe_painel_nova_maquina.bat` para criar o ambiente Python, instalar dependencias e gerar o build React.
 3. Execute `.venv\Scripts\python.exe manage.py check`. Corrija qualquer erro antes de continuar.
 
-## Etapa 2: aplicar a migracao no Supabase
+## Etapa 2: configurar a credencial somente na maquina
 
-1. Abra o projeto Supabase que sera compartilhado pelo Watcher.
-2. Execute integralmente o arquivo `supabase/migrations/20260901_create_watcher_analises.sql` no SQL Editor, ou aplique-o pelo processo de migracoes autorizado pela equipe.
-3. Confirme que a tabela `public.watcher_analises` foi criada e que RLS esta habilitado.
-4. A migracao pode ser executada novamente sem perda de dados, pois usa comandos idempotentes.
-
-## Etapa 3: configurar a credencial somente na maquina
+O projeto Supabase compartilhado e a tabela `public.watcher_analises` ja existem e sao administrados centralmente. Nao execute migracoes, nao crie tabelas e nao altere RLS nesta maquina. As credenciais serao fornecidas durante a instalacao.
 
 Escolha uma das opcoes abaixo. Nao use placeholders: informe a URL real do projeto Supabase e a `service_role_key` real.
 
@@ -63,7 +58,7 @@ Opcao alternativa, variaveis de ambiente do Windows:
 
 Depois de configurar variaveis de ambiente, inicie uma nova janela de terminal antes de subir o Watcher. Em Windows, o modulo tambem consegue ler as variaveis gravadas para evitar que um servidor Django ja aberto fique sem configuracao.
 
-## Etapa 4: validar a comunicacao
+## Etapa 3: validar a comunicacao
 
 1. Inicie o painel com `iniciar_avipe_painel.bat`.
 2. Abra `http://127.0.0.1:8000/api/analises/?ambiente=app&ids=1`.
@@ -77,7 +72,7 @@ Depois de configurar variaveis de ambiente, inicie uma nova janela de terminal a
 
 - Mensagem sobre `WATCHER_SUPABASE_URL` ou `WATCHER_SUPABASE_SERVICE_ROLE_KEY`: a maquina nao recebeu configuracao valida. Revise a secao `supabase_watcher` ou as variaveis de ambiente e reinicie o painel.
 - HTTP 401 ou 403 do Supabase: confirme URL, `service_role_key` e acesso da credencial ao projeto correto.
-- HTTP 404 da tabela: aplique a migracao SQL no projeto Supabase correto.
+- HTTP 404 da tabela: confirme com a equipe responsavel se a URL aponta para o projeto Supabase compartilhado correto. Nao tente criar ou migrar tabelas localmente.
 - Falha de rede: confirme DNS, proxy corporativo, firewall e acesso HTTPS ao dominio `*.supabase.co`.
 - Check ou anotacao nao persistem: verifique a resposta da API `/api/analises/` e os logs do Django; nao tente corrigir expondo a chave no frontend.
 
@@ -85,7 +80,6 @@ Depois de configurar variaveis de ambiente, inicie uma nova janela de terminal a
 
 Conclua somente quando todos estes itens forem verdadeiros:
 
-- migracao aplicada e RLS habilitado;
 - segredo configurado apenas localmente;
 - `manage.py check` sem erro;
 - API de analises retorna HTTP 200;
