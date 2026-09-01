@@ -14,6 +14,8 @@ type SelectFieldProps = BaseFieldProps & {
   options: string[];
 };
 
+type AnalysisSelectProps = Omit<SelectFieldProps, "options">;
+
 type ToggleFieldProps = BaseFieldProps & {
   value: string;
   onChange: (value: string) => void;
@@ -130,6 +132,19 @@ export function SelectField({ label, value, options, onChange, className = "" }:
             {option}
           </option>
         ))}
+      </select>
+    </label>
+  );
+}
+
+export function AnalysisSelect({ label, value, onChange, className = "" }: AnalysisSelectProps) {
+  return (
+    <label className={`block ${className}`}>
+      <span className={FIELD_LABEL_CLASS}>{label}</span>
+      <select className={FIELD_INPUT_CLASS} value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Todos</option>
+        <option value="marked">Marcados</option>
+        <option value="pending">Pendentes</option>
       </select>
     </label>
   );

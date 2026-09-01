@@ -1,7 +1,8 @@
 import type { FormEvent } from "react";
 import { countDistinctProcesses } from "../utils/appHelpers";
 import type { ListaResponse } from "../types";
-import { BinarySelect, DateFilterGroup, Field, SelectField, ToggleField } from "./FormFields";
+import { AnalysisSelect, BinarySelect, DateFilterGroup, Field, SelectField, ToggleField } from "./FormFields";
+import type { AnalisesPorRegistro } from "../features/analises/types";
 import { SearchTable, type PesquisaViewMode } from "./SearchTable";
 
 type FilterState = {
@@ -17,6 +18,7 @@ type FilterState = {
   data_processamento_fim: string;
   processado: string;
   juntado: string;
+  analise: string;
 };
 
 type SearchPageProps = {
@@ -39,6 +41,9 @@ type SearchPageProps = {
   formatText: (value: unknown) => string;
   formatDate: (value: unknown) => string;
   formatBoolean: (value: unknown) => string;
+  analises: AnalisesPorRegistro;
+  savingAnalysisIds: number[];
+  onToggleAnalysis: (registroId: number, analisado: boolean) => Promise<void>;
 };
 
 export function SearchPage({
@@ -61,6 +66,9 @@ export function SearchPage({
   formatText,
   formatDate,
   formatBoolean,
+  analises,
+  savingAnalysisIds,
+  onToggleAnalysis,
 }: SearchPageProps) {
   const records = lista?.paginacao.itens ?? [];
   const pageProcessCount = countDistinctProcesses(records, (item) => item.nuprocesso);
@@ -130,7 +138,7 @@ export function SearchPage({
           </div>
 
           {showPeriodFilters ? (
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid gap-4 xl:grid-cols-3">
               <DateFilterGroup
                 label="Inserido em"
                 statusValue={filters.data_insercao_status}
@@ -150,6 +158,13 @@ export function SearchPage({
                 onStartChange={(value) => setFilters((current) => ({ ...current, data_processamento_inicio: value }))}
                 onEndChange={(value) => setFilters((current) => ({ ...current, data_processamento_fim: value }))}
               />
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-3">
+                <AnalysisSelect
+                  label="Análise"
+                  value={filters.analise}
+                  onChange={(value) => setFilters((current) => ({ ...current, analise: value }))}
+                />
+              </div>
             </div>
           ) : null}
         </form>
@@ -170,6 +185,9 @@ export function SearchPage({
         formatText={formatText}
         formatDate={formatDate}
         formatBoolean={formatBoolean}
+        analises={analises}
+        savingAnalysisIds={savingAnalysisIds}
+        onToggleAnalysis={onToggleAnalysis}
       />
 
       {lista ? (

@@ -30,6 +30,7 @@ Em 21 de agosto de 2026, o sistema opera com este stack:
 - consulta paginada da tabela `avipe_pesquisa_endereco`
 - exportacao para Excel na aba `Pesquisa`, respeitando filtros e modo ativo
 - detalhe completo por registro
+- analises persistidas por registro, com anotacao, filtro e indicador consolidado por processo
 
 ## Recortes de tempo da observabilidade
 
@@ -131,6 +132,8 @@ avipe_painel/
 - `GET /api/pesquisas/`
 - `GET /api/pesquisas/exportar/?modo=<agrupada|linhas>`
 - `GET /api/pesquisas/detalhe/?id=<id>`
+- `GET /api/analises/?ambiente=<app|hml|prd>&ids=<ids>`
+- `POST /api/analises/<id>/`
 
 ## Requisitos para instalacao local
 

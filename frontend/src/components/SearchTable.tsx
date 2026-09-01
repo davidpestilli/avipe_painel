@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { PesquisaRegistro } from "../types";
+import { AnalysisCheckbox, AnalysisStatusLight, analiseDoRegistro } from "../features/analises/components";
+import type { AnalisesPorRegistro } from "../features/analises/types";
 
 export type PesquisaViewMode = "agrupada" | "linhas";
 
@@ -26,6 +28,9 @@ type SearchTableProps = {
   formatText: (value: unknown) => string;
   formatDate: (value: unknown) => string;
   formatBoolean: (value: unknown) => string;
+  analises: AnalisesPorRegistro;
+  savingAnalysisIds: number[];
+  onToggleAnalysis: (registroId: number, analisado: boolean) => Promise<void>;
 };
 
 export function SearchTable({
@@ -41,6 +46,9 @@ export function SearchTable({
   formatText,
   formatDate,
   formatBoolean,
+  analises,
+  savingAnalysisIds,
+  onToggleAnalysis,
 }: SearchTableProps) {
   const [copiedProcess, setCopiedProcess] = useState<string | null>(null);
 
@@ -54,7 +62,7 @@ export function SearchTable({
     }, new Map<string, PesquisaRegistro[]>()),
   );
 
-  const columnCount = showAction ? 9 : 8;
+  const columnCount = showAction ? 10 : 9;
 
   async function handleCopyProcess(processo: string) {
     if (!processo || processo === "Sem processo") {
@@ -89,6 +97,7 @@ export function SearchTable({
             <col className="w-[180px]" />
             <col className="w-[120px]" />
             <col className="w-[120px]" />
+            <col className="w-[90px]" />
             {showAction ? <col className="w-[120px]" /> : null}
           </colgroup>
           <thead className="bg-slate-950/60">
@@ -101,6 +110,7 @@ export function SearchTable({
               <HeaderCell centered>Processado em</HeaderCell>
               <HeaderCell centered>Processado</HeaderCell>
               <HeaderCell centered>Juntado</HeaderCell>
+              <HeaderCell centered>Análise</HeaderCell>
               {showAction ? <HeaderCell centered /> : null}
             </tr>
           </thead>
@@ -126,6 +136,15 @@ export function SearchTable({
                       <BodyCell centered className="border-t border-slate-600/90">{formatDate(item.data_processamento)}</BodyCell>
                       <BodyCell centered className="border-t border-slate-600/90">{formatBoolean(item.processado)}</BodyCell>
                       <BodyCell centered className="border-t border-slate-600/90">{formatBoolean(item.juntado)}</BodyCell>
+                      <BodyCell centered className="border-t border-slate-600/90">
+                        {typeof item.id === "number" ? (
+                          <AnalysisCheckbox
+                            checked={analiseDoRegistro(analises, item.id).analisado}
+                            saving={savingAnalysisIds.includes(item.id)}
+                            onChange={(analisado) => void onToggleAnalysis(item.id!, analisado)}
+                          />
+                        ) : null}
+                      </BodyCell>
                       {showAction ? (
                         <BodyCell centered className="border-t border-slate-600/90">
                           <button
@@ -170,6 +189,7 @@ export function SearchTable({
                         <BodyCell centered className="border-t border-slate-600/90">{formatDate(first.data_processamento)}</BodyCell>
                         <BodyCell centered className="border-t border-slate-600/90">{formatBoolean(first.processado)}</BodyCell>
                         <BodyCell centered className="border-t border-slate-600/90">{formatBoolean(first.juntado)}</BodyCell>
+                        <BodyCell centered className="border-t border-slate-600/90"><AnalysisStatusLight records={items} analises={analises} /></BodyCell>
                         {showAction ? (
                           <BodyCell centered className="border-t border-slate-600/90">
                             <button
@@ -193,6 +213,15 @@ export function SearchTable({
                               <BodyCell centered className="border-t border-slate-700/80 text-slate-300">{formatDate(item.data_processamento)}</BodyCell>
                               <BodyCell centered className="border-t border-slate-700/80 text-slate-100">{formatBoolean(item.processado)}</BodyCell>
                               <BodyCell centered className="border-t border-slate-700/80 text-slate-100">{formatBoolean(item.juntado)}</BodyCell>
+                              <BodyCell centered className="border-t border-slate-700/80">
+                                {typeof item.id === "number" ? (
+                                  <AnalysisCheckbox
+                                    checked={analiseDoRegistro(analises, item.id).analisado}
+                                    saving={savingAnalysisIds.includes(item.id)}
+                                    onChange={(analisado) => void onToggleAnalysis(item.id!, analisado)}
+                                  />
+                                ) : null}
+                              </BodyCell>
                               {showAction ? (
                                 <BodyCell centered className="border-t border-slate-700/80">
                                   <button

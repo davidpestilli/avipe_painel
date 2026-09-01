@@ -1,5 +1,7 @@
 import { Fragment } from "react";
 import type { DetalheResponse } from "../types";
+import { AnalysisNoteEditor } from "../features/analises/components";
+import type { AnaliseRegistro } from "../features/analises/types";
 
 type DetailPageProps = {
   detalhe: DetalheResponse | null;
@@ -10,6 +12,9 @@ type DetailPageProps = {
   formatDate: (value: unknown) => string;
   formatBoolean: (value: unknown) => string;
   formatText: (value: unknown) => string;
+  analise: AnaliseRegistro;
+  savingAnalysis: boolean;
+  onSaveAnnotation: (value: string) => Promise<void>;
 };
 
 export function DetailPage({
@@ -21,6 +26,9 @@ export function DetailPage({
   formatDate,
   formatBoolean,
   formatText,
+  analise,
+  savingAnalysis,
+  onSaveAnnotation,
 }: DetailPageProps) {
   return (
     <div className="space-y-6">
@@ -50,26 +58,31 @@ export function DetailPage({
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-800 bg-slate-900/85 p-5 shadow-2xl shadow-slate-950/40">
+      <section className="grid gap-5 rounded-3xl border border-slate-800 bg-slate-900/85 p-5 shadow-2xl shadow-slate-950/40 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
         {loadingDetail ? (
           <p className="text-sm text-slate-300">Carregando detalhe...</p>
         ) : detalhe?.erro ? (
           <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{detalhe.erro}</div>
         ) : (
-          <dl className="grid gap-y-3 md:grid-cols-[240px_minmax(0,1fr)] md:gap-x-6">
-            {detalhesRegistro.map(([key, value]) => (
-              <Fragment key={key}>
-                <dt className="text-sm font-semibold uppercase tracking-wide text-slate-400">{key}</dt>
-                <dd className="break-all text-sm text-slate-100">
-                  {key.includes("data")
-                    ? formatDate(value)
-                    : typeof value === "boolean" || value === 0 || value === 1
-                      ? formatBoolean(value)
-                      : formatText(value)}
-                </dd>
-              </Fragment>
-            ))}
-          </dl>
+          <>
+            <dl className="grid gap-y-3 md:grid-cols-[240px_minmax(0,1fr)] md:gap-x-6">
+              {detalhesRegistro.map(([key, value]) => (
+                <Fragment key={key}>
+                  <dt className="text-sm font-semibold uppercase tracking-wide text-slate-400">{key}</dt>
+                  <dd className="break-all text-sm text-slate-100">
+                    {key.includes("data")
+                      ? formatDate(value)
+                      : typeof value === "boolean" || value === 0 || value === 1
+                        ? formatBoolean(value)
+                        : formatText(value)}
+                  </dd>
+                </Fragment>
+              ))}
+            </dl>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-4">
+              <AnalysisNoteEditor value={analise.anotacao} saving={savingAnalysis} onSave={onSaveAnnotation} />
+            </div>
+          </>
         )}
       </section>
     </div>

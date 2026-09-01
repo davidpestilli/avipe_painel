@@ -57,6 +57,28 @@ def _anexar_exclusao_orgao_suporte(where_sql: str, params: list[Any]) -> tuple[s
     return f"WHERE {clausula}", [ORGAO_SUPORTE]
 
 
+def _anexar_filtro_registros(
+    where_sql: str,
+    params: list[Any],
+    registro_ids: list[int] | None,
+    excluir_registro_ids: list[int] | None,
+) -> tuple[str, list[Any]]:
+    """Aplica os IDs calculados pelo modulo de analises sem acoplar os bancos."""
+    ids = registro_ids if registro_ids is not None else excluir_registro_ids
+    if ids is None:
+        return where_sql, params
+    if not ids:
+        if registro_ids is None:
+            return where_sql, params
+        clausula = "1 = 0"
+        return (f"{where_sql} AND {clausula}" if where_sql else f"WHERE {clausula}"), params
+
+    marcadores = ", ".join(["%s"] * len(ids))
+    operador = "IN" if registro_ids is not None else "NOT IN"
+    clausula = f"id {operador} ({marcadores})"
+    return (f"{where_sql} AND {clausula}" if where_sql else f"WHERE {clausula}"), [*params, *ids]
+
+
 def sanitizar_filtro_orgao_suporte(filtros: dict[str, str]) -> dict[str, str]:
     if orgao_suporte_visivel():
         return filtros
@@ -416,8 +438,11 @@ def consultar_registros(
     pagina: int = 1,
     por_pagina: int = 25,
     ambiente: str = AMBIENTE_PADRAO,
+    registro_ids: list[int] | None = None,
+    excluir_registro_ids: list[int] | None = None,
 ) -> Paginacao:
     where_sql, params = _construir_filtros_where(filtros)
+    where_sql, params = _anexar_filtro_registros(where_sql, params, registro_ids, excluir_registro_ids)
     offset = (pagina - 1) * por_pagina
 
     sql_total = f"SELECT COUNT(*) AS total FROM avipe_pesquisa_endereco {where_sql}"
@@ -460,8 +485,11 @@ def exportar_registros(
     filtros: dict[str, str],
     limite: int = 1000,
     ambiente: str = AMBIENTE_PADRAO,
+    registro_ids: list[int] | None = None,
+    excluir_registro_ids: list[int] | None = None,
 ) -> list[dict[str, Any]]:
     where_sql, params = _construir_filtros_where(filtros)
+    where_sql, params = _anexar_filtro_registros(where_sql, params, registro_ids, excluir_registro_ids)
     sql = f"""
         SELECT id, nuprocesso, cpf, sig_orgao, ip_cliente, usuario_logado,
                data_insercao, data_processamento, data_inclusao_localizador,
@@ -481,8 +509,11 @@ def exportar_processos(
     filtros: dict[str, str],
     limite: int = 1000,
     ambiente: str = AMBIENTE_PADRAO,
+    registro_ids: list[int] | None = None,
+    excluir_registro_ids: list[int] | None = None,
 ) -> list[dict[str, Any]]:
     where_sql, params = _construir_filtros_where(filtros)
+    where_sql, params = _anexar_filtro_registros(where_sql, params, registro_ids, excluir_registro_ids)
     processo_expr = "COALESCE(NULLIF(TRIM(nuprocesso), ''), 'Sem processo')"
     sql = f"""
         SELECT

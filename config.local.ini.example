@@ -6,3 +6,9 @@ password = coloque_a_senha_hml_aqui
 
 [mysql_avipe_prd]
 password = coloque_a_senha_prd_aqui
+
+[supabase_watcher]
+# Credenciais usadas somente pelo backend para persistir as analises.
+# Nao exponha a service_role_key no frontend nem a versione no Git.
+url = https://seu-projeto.supabase.co
+service_role_key = coloque_a_service_role_key_aqui

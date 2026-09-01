@@ -1,5 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { exportLista, fetchConfiguracoes, fetchDashboard, fetchDetalhe, fetchLista, fetchObservabilidade, updateExibirOrgaoSuporte } from "./api";
+import { fetchAnalises, saveAnalise } from "./features/analises/api";
+import { analiseDoRegistro } from "./features/analises/components";
+import type { AnalisesPorRegistro } from "./features/analises/types";
 import { CompactHeader, LoadingOverlay } from "./components/AppShell";
 import { DetailPage } from "./components/DetailPage";
 import {
@@ -47,6 +50,7 @@ const FILTER_KEYS = [
   "data_processamento_fim",
   "processado",
   "juntado",
+  "analise",
 ] as const;
 
 type FilterKey = (typeof FILTER_KEYS)[number];
@@ -65,6 +69,7 @@ const EMPTY_FILTERS: FilterState = {
   data_processamento_fim: "",
   processado: "",
   juntado: "",
+  analise: "",
 };
 
 const STORAGE_KEY = "avipe_painel_ambiente";
@@ -98,6 +103,8 @@ function App() {
   const [showPeriodFilters, setShowPeriodFilters] = useState(false);
   const [pesquisaViewMode, setPesquisaViewMode] = useState<PesquisaViewMode>("agrupada");
   const [expandedProcesses, setExpandedProcesses] = useState<string[]>([]);
+  const [analises, setAnalises] = useState<AnalisesPorRegistro>({});
+  const [savingAnalysisIds, setSavingAnalysisIds] = useState<number[]>([]);
   const observabilidadeRequestIdRef = useRef(0);
 
   useEffect(() => {
@@ -214,6 +221,12 @@ function App() {
       const payload = await fetchLista(queryString, ambiente);
       setLista(payload);
       setDetalhe(null);
+      try {
+        setAnalises(await fetchAnalises(payload.paginacao.itens.map((item) => item.id), ambiente));
+      } catch (analysisError) {
+        setAnalises({});
+        setError(analysisError instanceof Error ? analysisError.message : "Falha ao carregar as analises.");
+      }
 
       if (pathOverride) {
         window.history.replaceState({}, "", `${pathOverride}${queryString ? `?${queryString}` : ""}`);
@@ -230,6 +243,9 @@ function App() {
     try {
       const payload = await fetchDetalhe(id, ambiente);
       setDetalhe(payload);
+      if (typeof payload.registro?.id === "number") {
+        setAnalises(await fetchAnalises([payload.registro.id], ambiente));
+      }
     } catch (fetchError) {
       setDetalhe({ erro: fetchError instanceof Error ? fetchError.message : "Falha ao carregar o detalhe." });
     } finally {
@@ -281,6 +297,38 @@ function App() {
   async function handleFilterSubmit(event: FormEvent) {
     event.preventDefault();
     await handleGoToLista(1);
+  }
+
+  async function handleToggleAnalysis(registroId: number, analisado: boolean) {
+    const anterior = analiseDoRegistro(analises, registroId);
+    setAnalises((current) => ({ ...current, [String(registroId)]: { ...anterior, analisado } }));
+    setSavingAnalysisIds((current) => [...new Set([...current, registroId])]);
+    try {
+      const analise = await saveAnalise(registroId, selectedAmbiente, { analisado });
+      setAnalises((current) => ({ ...current, [String(registroId)]: analise }));
+    } catch (saveError) {
+      setAnalises((current) => ({ ...current, [String(registroId)]: anterior }));
+      setError(saveError instanceof Error ? saveError.message : "Falha ao salvar a analise.");
+    } finally {
+      setSavingAnalysisIds((current) => current.filter((id) => id !== registroId));
+    }
+  }
+
+  async function handleSaveAnnotation(anotacao: string) {
+    const registroId = detalhe?.registro?.id;
+    if (typeof registroId !== "number") {
+      return;
+    }
+    setSavingAnalysisIds((current) => [...new Set([...current, registroId])]);
+    try {
+      const analise = await saveAnalise(registroId, selectedAmbiente, { anotacao });
+      setAnalises((current) => ({ ...current, [String(registroId)]: analise }));
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Falha ao salvar a anotacao.");
+      throw saveError;
+    } finally {
+      setSavingAnalysisIds((current) => current.filter((id) => id !== registroId));
+    }
   }
 
   async function handleRefreshCurrentView() {
@@ -425,6 +473,9 @@ function App() {
               formatText={formatText}
               formatDate={formatDate}
               formatBoolean={formatBoolean}
+              analises={analises}
+              savingAnalysisIds={savingAnalysisIds}
+              onToggleAnalysis={handleToggleAnalysis}
             />
           ) : null}
 
@@ -438,6 +489,9 @@ function App() {
               }
               onBackToHome={handleGoToHome}
               formatText={formatText}
+              analise={analiseDoRegistro(analises, detalhe?.registro?.id)}
+              savingAnalysis={typeof detalhe?.registro?.id === "number" && savingAnalysisIds.includes(detalhe.registro.id)}
+              onSaveAnnotation={handleSaveAnnotation}
               formatDate={formatDate}
               formatBoolean={formatBoolean}
             />

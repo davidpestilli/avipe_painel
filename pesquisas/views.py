@@ -14,6 +14,8 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from analises.client import listar_ids_analisados
+
 from .analytics import buscar_observabilidade
 from .preferences import definir_exibir_orgao_suporte, obter_preferencias
 from .services import (
@@ -153,8 +155,15 @@ def api_lista_pesquisas(request: HttpRequest) -> JsonResponse:
     filtros = sanitizar_filtro_orgao_suporte(_extrair_filtros_pesquisa(request))
     pagina = max(1, int(request.GET.get("pagina", "1") or "1"))
     try:
+        registro_ids, excluir_registro_ids = _resolver_filtro_analise(filtros, ambiente)
         paginacao = _normalizar_paginacao(
-            consultar_registros(filtros=filtros, pagina=pagina, ambiente=ambiente)
+            consultar_registros(
+                filtros=filtros,
+                pagina=pagina,
+                ambiente=ambiente,
+                registro_ids=registro_ids,
+                excluir_registro_ids=excluir_registro_ids,
+            )
         )
         query_base = {chave: valor for chave, valor in filtros.items() if valor}
         return JsonResponse(
@@ -204,18 +213,31 @@ def api_exportar_pesquisas(request: HttpRequest) -> HttpResponse:
     modo = request.GET.get("modo", "agrupada").strip().lower()
 
     try:
+        registro_ids, excluir_registro_ids = _resolver_filtro_analise(filtros, ambiente)
         workbook_factory = _obter_workbook_factory()
         if modo == "linhas":
             registros = [
                 _normalizar_registro_datas(item)
-                for item in exportar_registros(filtros=filtros, limite=_EXPORT_LIMIT, ambiente=ambiente)
+                for item in exportar_registros(
+                    filtros=filtros,
+                    limite=_EXPORT_LIMIT,
+                    ambiente=ambiente,
+                    registro_ids=registro_ids,
+                    excluir_registro_ids=excluir_registro_ids,
+                )
             ]
             response = _montar_resposta_excel_registros(registros, workbook_factory)
             nome_arquivo = "pesquisas_registros.xlsx"
         else:
             processos = [
                 _normalizar_registro_datas(item)
-                for item in exportar_processos(filtros=filtros, limite=_EXPORT_LIMIT, ambiente=ambiente)
+                for item in exportar_processos(
+                    filtros=filtros,
+                    limite=_EXPORT_LIMIT,
+                    ambiente=ambiente,
+                    registro_ids=registro_ids,
+                    excluir_registro_ids=excluir_registro_ids,
+                )
             ]
             response = _montar_resposta_excel_processos(processos, workbook_factory)
             nome_arquivo = "pesquisas_processos.xlsx"
@@ -247,7 +269,16 @@ def _extrair_filtros_pesquisa(request: HttpRequest) -> dict[str, str]:
         "data_processamento_fim": request.GET.get("data_processamento_fim", ""),
         "processado": request.GET.get("processado", ""),
         "juntado": request.GET.get("juntado", ""),
+        "analise": request.GET.get("analise", ""),
     }
+
+
+def _resolver_filtro_analise(filtros: dict[str, str], ambiente: str) -> tuple[list[int] | None, list[int] | None]:
+    status = filtros.get("analise", "").strip().lower()
+    if status not in {"marked", "pending"}:
+        return None, None
+    ids_analisados = listar_ids_analisados(ambiente)
+    return (ids_analisados, None) if status == "marked" else (None, ids_analisados)
 
 
 def _obter_workbook_factory():
