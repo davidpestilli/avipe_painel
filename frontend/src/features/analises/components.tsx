@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PesquisaRegistro } from "../../types";
 import { ANALISE_PADRAO, type AnaliseRegistro, type AnalisesPorRegistro } from "./types";
 
@@ -33,16 +33,27 @@ export function AnalysisStatusLight({ records, analises }: { records: PesquisaRe
 
 export function AnalysisNoteEditor({ value, saving, onSave }: { value: string; saving: boolean; onSave: (value: string) => Promise<void> }) {
   const [draft, setDraft] = useState(value);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setDraft(value);
   }, [value]);
 
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+    textarea.style.height = "0px";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [draft]);
+
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-semibold uppercase tracking-wide text-slate-400">Anotacao da analise</span>
       <textarea
-        className="min-h-36 w-full resize-y rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm text-slate-100 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/15"
+        ref={textareaRef}
+        className="min-h-[360px] w-full resize-y overflow-y-hidden rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-slate-100 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/15"
         value={draft}
         placeholder="Escreva observacoes sobre este registro..."
         onChange={(event) => setDraft(event.target.value)}

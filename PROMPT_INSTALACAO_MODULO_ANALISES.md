@@ -23,7 +23,6 @@ Ele fica isolado no backend `analises/`, no frontend `frontend/src/features/anal
 - `analises/client.py`: cliente server-side do Supabase e leitura de configuracao.
 - `analises/views.py`: APIs do modulo.
 - `frontend/src/features/analises/`: componentes, tipos e chamadas do frontend.
-- `supabase/migrations/20260901_create_watcher_analises.sql`: migracao idempotente da tabela.
 - `config.local.ini.example`: modelo de configuracao local, sem segredos.
 
 ## Etapa 1: preparar o projeto
@@ -66,7 +65,7 @@ Depois de configurar variaveis de ambiente, inicie uma nova janela de terminal a
 4. Na aba Pesquisa, marque um registro e atualize a pagina. O check deve permanecer marcado.
 5. Abra Detalhe, salve uma anotacao, atualize a pagina e confirme a persistencia.
 6. Na visualizacao Processos, confirme que a luz fica vermelha com algum registro pendente e verde somente quando todos estiverem marcados.
-7. Confirme os filtros `Marcados` e `Pendentes`, inclusive na exportacao para Excel.
+7. Confirme os filtros `Finalizados` e `Pendentes`, inclusive na exportacao para Excel.
 
 ## Diagnostico de falhas
 

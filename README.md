@@ -30,7 +30,7 @@ Em 21 de agosto de 2026, o sistema opera com este stack:
 - consulta paginada da tabela `avipe_pesquisa_endereco`
 - exportacao para Excel na aba `Pesquisa`, respeitando filtros e modo ativo
 - detalhe completo por registro
-- analises persistidas por registro, com anotacao, filtro e indicador consolidado por processo
+- analises persistidas por registro, com check de finalizacao imediata, anotacao expansivel, filtro e indicador consolidado por processo
 
 ## Recortes de tempo da observabilidade
 
@@ -134,6 +134,15 @@ avipe_painel/
 - `GET /api/pesquisas/detalhe/?id=<id>`
 - `GET /api/analises/?ambiente=<app|hml|prd>&ids=<ids>`
 - `POST /api/analises/<id>/`
+
+### Modulo de analises
+
+O modulo de analises permanece separado do restante do painel em `analises/` e `frontend/src/features/analises/`. Ele salva o check de finalizacao e a anotacao por `ambiente + id do registro` no Supabase compartilhado.
+
+- Em `Processos`, a luz verde indica que todos os registros foram finalizados; a vermelha indica ao menos um pendente.
+- Em `Registros` e nas linhas expandidas, a marcacao e salva imediatamente.
+- A anotacao da tela Detalhe ocupa a largura do painel, inicia com altura ampliada e cresce conforme o texto.
+- Em outra maquina, configure somente as credenciais locais do Supabase. Use `PROMPT_INSTALACAO_MODULO_ANALISES.md`; nao execute migracoes nem exponha a `service_role_key` no frontend.
 
 ## Requisitos para instalacao local
 

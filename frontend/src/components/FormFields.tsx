@@ -143,7 +143,7 @@ export function AnalysisSelect({ label, value, onChange, className = "" }: Analy
       <span className={FIELD_LABEL_CLASS}>{label}</span>
       <select className={FIELD_INPUT_CLASS} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">Todos</option>
-        <option value="marked">Marcados</option>
+        <option value="marked">Finalizados</option>
         <option value="pending">Pendentes</option>
       </select>
     </label>

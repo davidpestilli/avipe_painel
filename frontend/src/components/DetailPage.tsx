@@ -79,7 +79,7 @@ export function DetailPage({
                 </Fragment>
               ))}
             </dl>
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-5 xl:col-span-2">
               <AnalysisNoteEditor value={analise.anotacao} saving={savingAnalysis} onSave={onSaveAnnotation} />
             </div>
           </>

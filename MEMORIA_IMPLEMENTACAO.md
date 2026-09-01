@@ -542,6 +542,17 @@ Concentra:
 - grafico de processamento x juntada
 - seletor de orgaos
 
+## Extensao do modulo de analises - 1 de setembro de 2026
+
+Foi incorporado o modulo isolado `analises/` no backend e `frontend/src/features/analises/` no frontend para registrar a finalizacao e as anotacoes por `ambiente + id do registro` no Supabase compartilhado.
+
+- A tabela remota `watcher_analises` concentra apenas os campos de analise e nao se mistura com a base MySQL operacional.
+- O check individual e salvo imediatamente ao marcar ou desmarcar.
+- O filtro da Pesquisa passou a apresentar `Todos`, `Finalizados` e `Pendentes`, inclusive na exportacao.
+- Em Processos, a coluna Análise usa luz verde quando todos os registros estao finalizados e vermelha se existe pendencia.
+- A anotacao do Detalhe usa toda a largura disponivel, tem altura inicial ampliada e cresce automaticamente para exibir o conteudo completo.
+- As credenciais do Supabase permanecem somente na configuracao local ou nas variaveis do ambiente; o guia `PROMPT_INSTALACAO_MODULO_ANALISES.md` orienta a instalacao em outra maquina sem criar ou migrar recursos remotos.
+
 ## Validacoes realizadas ate 31 de agosto de 2026
 
 Foram validados com sucesso:
