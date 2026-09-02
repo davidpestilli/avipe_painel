@@ -58,7 +58,7 @@ export function DetailPage({
         </div>
       </section>
 
-      <section className="grid gap-5 rounded-3xl border border-slate-800 bg-slate-900/85 p-5 shadow-2xl shadow-slate-950/40 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
+      <section className="grid gap-5 rounded-3xl border border-slate-800 bg-slate-900/85 p-5 shadow-2xl shadow-slate-950/40 xl:grid-cols-[minmax(520px,1fr)_minmax(0,0.8fr)]">
         {loadingDetail ? (
           <p className="text-sm text-slate-300">Carregando detalhe...</p>
         ) : detalhe?.erro ? (
@@ -79,7 +79,7 @@ export function DetailPage({
                 </Fragment>
               ))}
             </dl>
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-5 xl:col-span-2">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/35 p-5">
               <AnalysisNoteEditor value={analise.anotacao} saving={savingAnalysis} onSave={onSaveAnnotation} />
             </div>
           </>
