@@ -290,7 +290,12 @@ function FluxoLineTooltip({
   const entradaValor = typeof entradas?.value === "number" ? entradas.value : Number(entradas?.value ?? 0);
   const processamentosValor = typeof processamentos?.value === "number" ? processamentos.value : Number(processamentos?.value ?? 0);
   const processamentosLabel = metricScope === "registros" ? "Registros processados" : "Autos processados";
-  const orgaosEntrada = Array.isArray(row.orgaos_entrada) ? (row.orgaos_entrada as FluxoTooltipOrgaoEntrada[]) : [];
+  const orgaosEntradaKey = metricScope === "registros" ? "orgaos_entrada_registros" : "orgaos_entrada_processos";
+  const orgaosEntrada = Array.isArray(row[orgaosEntradaKey])
+    ? (row[orgaosEntradaKey] as FluxoTooltipOrgaoEntrada[])
+    : Array.isArray(row.orgaos_entrada)
+      ? (row.orgaos_entrada as FluxoTooltipOrgaoEntrada[])
+      : [];
 
   return (
     <div style={tooltipStyle}>

@@ -573,6 +573,8 @@ Foram validados com sucesso:
 - toggle compartilhado de exibicao do orgao `SUPORTE`
 - tooltip de sanamento no grafico Entrada x Processamento
 - tooltip do grafico de linhas Entrada x Processamento com lista colorida de unidades por horario
+- tooltip de unidades com entrada separado por escopo: `orgaos_entrada_registros` preserva a quantidade de registros e `orgaos_entrada_processos` informa processos distintos por unidade
+- teste de regressao da observabilidade com dois registros do mesmo processo, validando a exibicao de `2` registros e `1` processo
 - destaque de orgaos com diferenca processado x juntado
 - geracao de planilha Excel por `Processos`
 - validacao de subida do Django sem importacao antecipada de `openpyxl`

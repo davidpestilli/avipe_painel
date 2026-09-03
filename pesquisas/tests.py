@@ -1,10 +1,13 @@
 import json
+from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 from django.test import SimpleTestCase, override_settings
 
+from pesquisas.analytics import buscar_observabilidade
 from pesquisas.preferences import (
     ORGAO_SUPORTE,
     DEFAULT_PREFERENCES,
@@ -68,3 +71,38 @@ class ExclusaoOrgaoSuporteTests(SimpleTestCase):
     def test_registro_suporte_fica_oculto(self, _mock_visivel):
         self.assertTrue(registro_orgao_suporte_oculto({"sig_orgao": "SUPORTE"}))
         self.assertFalse(registro_orgao_suporte_oculto({"sig_orgao": "TRF3"}))
+
+
+class ObservabilidadeEntradaPorOrgaoTests(SimpleTestCase):
+    @patch("pesquisas.analytics._agora_local", return_value=datetime(2026, 9, 3, 10, 30, tzinfo=ZoneInfo("America/Sao_Paulo")))
+    @patch("pesquisas.analytics._anexar_exclusao_orgao_suporte", return_value=("", []))
+    @patch("pesquisas.analytics.abrir_conexao")
+    def test_separa_processos_distintos_dos_registros_no_tooltip(self, mock_abrir_conexao, _mock_exclusao, _mock_agora):
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [
+            {
+                "nuprocesso": "0001",
+                "sig_orgao": "CENTRAL",
+                "data_inclusao_localizador": "03/09/2026 10:00:00",
+                "data_processamento": None,
+                "processado": 0,
+                "juntado": 0,
+            },
+            {
+                "nuprocesso": "0001",
+                "sig_orgao": "CENTRAL",
+                "data_inclusao_localizador": "03/09/2026 10:15:00",
+                "data_processamento": None,
+                "processado": 0,
+                "juntado": 0,
+            },
+        ]
+        connection = MagicMock()
+        connection.cursor.return_value.__enter__.return_value = cursor
+        mock_abrir_conexao.return_value.__enter__.return_value = connection
+
+        resposta = buscar_observabilidade("today")
+        ponto = resposta["inclusao_vs_processamento"]["evolucao"][0]
+
+        self.assertEqual(ponto["orgaos_entrada_registros"], [{"orgao": "CENTRAL", "quantidade": 2}])
+        self.assertEqual(ponto["orgaos_entrada_processos"], [{"orgao": "CENTRAL", "quantidade": 1}])

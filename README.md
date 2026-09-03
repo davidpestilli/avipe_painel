@@ -78,8 +78,9 @@ Na visualizacao `Linhas`, o tooltip de cada ponto agora mostra:
 - total de `Entrada`
 - total de `Autos processados` ou `Registros processados`
 - lista das unidades com entrada naquele horario, usando a nomenclatura original do campo `Orgao` e uma cor distinta por unidade
+- na leitura por `Processos`, a lista usa processos distintos por unidade; na leitura por `Registros`, usa a quantidade de registros
 
-Essa lista e enviada no campo `orgaos_entrada` dentro de cada ponto da `evolucao`.
+As listas sao enviadas em `orgaos_entrada_registros` e `orgaos_entrada_processos` dentro de cada ponto da `evolucao`; `orgaos_entrada` permanece como compatibilidade para registros.
 
 ### Grafico Processamento x Juntada por Unidade
 

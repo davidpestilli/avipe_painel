@@ -231,11 +231,11 @@ def _serializar_recuperacoes(
 
 
 def _serializar_orgaos_entrada(
-    por_orgao_registros: dict[str, int],
+    por_orgao_quantidades: dict[str, int],
 ) -> list[dict[str, Any]]:
     itens = [
         {"orgao": orgao, "quantidade": quantidade}
-        for orgao, quantidade in por_orgao_registros.items()
+        for orgao, quantidade in por_orgao_quantidades.items()
         if int(quantidade) > 0
     ]
     itens.sort(key=lambda item: (-item["quantidade"], item["orgao"]))
@@ -510,6 +510,7 @@ def buscar_observabilidade(period_key: str, ambiente: str = AMBIENTE_PADRAO) -> 
         totais_registros = throughput_timeline_registros.get(bucket, {"inclusoes": 0, "processamentos": 0})
         totais_processos = throughput_timeline_processos.get(bucket, {"inclusoes": set(), "processamentos": set()})
         por_orgao_throughput = throughput_timeline_registros_por_orgao.get(bucket, {})
+        por_orgao_throughput_processos = throughput_timeline_processos_por_orgao.get(bucket, {})
         registro = {
             "bucket": bucket.isoformat(),
             "label": _formatar_bucket(bucket, periodo.bucket_hours),
@@ -527,7 +528,14 @@ def buscar_observabilidade(period_key: str, ambiente: str = AMBIENTE_PADRAO) -> 
             registro[f"{orgao}__inclusoes_processos"] = len(dados["inclusoes"])
             registro[f"{orgao}__processamentos_processos"] = len(dados["processamentos"])
         registro["sanamento_por_orgao"] = sanamento_por_bucket.get(bucket.isoformat(), {})
-        registro["orgaos_entrada"] = _serializar_orgaos_entrada({orgao: dados["inclusoes"] for orgao, dados in por_orgao_throughput.items()})
+        orgaos_entrada_registros = _serializar_orgaos_entrada(
+            {orgao: dados["inclusoes"] for orgao, dados in por_orgao_throughput.items()}
+        )
+        registro["orgaos_entrada"] = orgaos_entrada_registros
+        registro["orgaos_entrada_registros"] = orgaos_entrada_registros
+        registro["orgaos_entrada_processos"] = _serializar_orgaos_entrada(
+            {orgao: len(dados["inclusoes"]) for orgao, dados in por_orgao_throughput_processos.items()}
+        )
         timeline_throughput.append(registro)
 
     timeline_status = []
